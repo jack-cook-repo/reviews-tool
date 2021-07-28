@@ -1,0 +1,15 @@
+pandas
+numpy
+jupyter
+jedi
+seaborn
+matplotlib
+google-services-api
+selenium
+beautifulsoup4
+nltk
+spacy
+openpyxl
+sklearn
+gensim
+tqdm
