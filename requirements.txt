@@ -13,3 +13,5 @@ openpyxl
 sklearn
 gensim
 tqdm
+streamlit
+watchdog
