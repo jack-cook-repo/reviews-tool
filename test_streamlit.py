@@ -1,6 +1,4 @@
 import streamlit as st
-import numpy as np
-import pandas as pd
 
 st.write('# This is a title written in markdown')
 
@@ -39,3 +37,29 @@ map_data = pd.DataFrame(
     columns=['lat', 'lon'])
 
 st.map(map_data)
+
+# Lay out columns side by side
+left_column, right_column = st.beta_columns(2)
+pressed = left_column.button('Press me?')
+if pressed:
+    right_column.write("Woohoo!")
+
+# Expanders can hide page content
+expander = st.beta_expander("FAQ")
+expander.write("Here you could put in some really, really long explanations...")
+
+# Remember, we could use .write() here, but just calling the string also workds
+'Starting a long computation...'
+
+# Add a placeholder
+latest_iteration = st.empty()
+bar = st.progress(0)
+
+for i in range(100):
+  # Update the progress bar with each iteration.
+  latest_iteration.text(f'Iteration {i+1}')
+  bar.progress(i + 1)
+  time.sleep(0.02)
+
+# Print after we're done
+'...and now we\'re done!'
