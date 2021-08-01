@@ -1,4 +1,7 @@
 import streamlit as st
+import numpy as np
+import pandas as pd
+import time
 
 st.write('# This is a title written in markdown')
 
@@ -56,10 +59,10 @@ latest_iteration = st.empty()
 bar = st.progress(0)
 
 for i in range(100):
-  # Update the progress bar with each iteration.
-  latest_iteration.text(f'Iteration {i+1}')
-  bar.progress(i + 1)
-  time.sleep(0.02)
+    # Update the progress bar with each iteration.
+    latest_iteration.text(f'Iteration {i+1}')
+    bar.progress(i + 1)
+    time.sleep(0.02)
 
 # Print after we're done
 '...and now we\'re done!'
