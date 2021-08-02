@@ -17,3 +17,4 @@ streamlit
 watchdog
 google
 google-cloud-bigquery
+pyLDAvis
