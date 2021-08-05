@@ -87,17 +87,36 @@ def clean_text(text):
     Takes text and applies lower case, removes stopwords (from nltk English stopwords), strips punctuation/numbers,
     and returns the cleaned text.
 
+    Also keeps context of 'not' words - e.g. "would not recommend" becomes "wouldnt recommend", otherwise
+    stop word removal gets rid of the 'not' and leaves "would recommend" which is counterintuitive.
+
     :param text:
     :return: Text in lower case, with no stop words, punctuation, or numbers
     '''
-    tokens = text.split(' ')
+    text_lower = text.lower()
 
-    # Get lower case
-    tokens_lower = [t.lower() for t in tokens]
+    # There will be a better way of doing this
+    text_w_not_words = text_lower.replace('would not', 'wouldnt')
+    text_w_not_words = text_w_not_words.replace('should not', 'shouldnt')
+    text_w_not_words = text_w_not_words.replace('do not', 'dont')
+    text_w_not_words = text_w_not_words.replace('are not', 'arent')
+    text_w_not_words = text_w_not_words.replace('can not', 'cant')
+    text_w_not_words = text_w_not_words.replace('had not', 'hadnt')
+    text_w_not_words = text_w_not_words.replace('have not', 'havent')
+    text_w_not_words = text_w_not_words.replace('is not', 'isnt')
+    text_w_not_words = text_w_not_words.replace('will not', 'wont')
+
+    # Apply extra replacement steps
+    text_further_rep = re.sub(r'(server|waiter|waitress)', 'staff', text_w_not_words)
+    text_further_rep = text_further_rep.replace('mins', 'minutes')
+    text_further_rep = text_further_rep.replace('hrs', 'hours')
+
+    # Get tokens
+    tokens = text_further_rep.split(' ')
 
     # Then remove stopwords
     sw = stopwords.words('english')
-    tokens_no_sw = [t for t in tokens_lower if t not in sw]
+    tokens_no_sw = [t for t in tokens if t not in sw]
 
     # Then strip punctuation
     tokens_alpha = [re.sub('[^A-z]', '', t) for t in tokens_no_sw]
