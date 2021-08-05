@@ -8,9 +8,10 @@ from datetime import datetime
 from nltk.collocations import BigramAssocMeasures, TrigramAssocMeasures, \
     BigramCollocationFinder, TrigramCollocationFinder
 
-
+st.set_page_config(layout='wide')
 sns.set(font='sans-serif',
-        style='ticks')
+        style='darkgrid',
+        font_scale=1.3)
 
 # Load initial dataframe
 FILE_PATH = '/Users/jackcook/PycharmProjects/reviews-tool/data/processed_data/df_big_easy_clean.csv'
@@ -43,8 +44,8 @@ def add_data_labels(axis, label_fmt):
             continue
         axis.annotate(label_fmt.format(p.get_height()),  # Get value
                       (p.get_x() + p.get_width() / 2., p.get_height()),  # Get position
-                      ha='center', va='center', fontsize=10, color='black',
-                      xytext=(0, 5), textcoords='offset points')
+                      ha='center', va='center', color='black',
+                      xytext=(0, 10), textcoords='offset points')
 
 
 current_date = get_date()
@@ -92,6 +93,8 @@ st.write(f'''
 # ---First plots----- #
 # ################### #
 
+left, right = st.beta_columns(2)
+
 # 1: Reviews over time
 
 df_monthly_output = df_big_easy_clean.set_index('date_clean').resample('M')['reviewRating'].agg(('mean',
@@ -106,7 +109,7 @@ df_monthly_output['mean'] = np.where(df_monthly_output['count'] > 5,
 df_monthly_output['mean'] = df_monthly_output['mean'].map(lambda n: np.around(n, 1))
 
 # Set up plot space
-fig, ax = plt.subplots(figsize=(6, 2), constrained_layout=True)
+fig, ax = plt.subplots(figsize=(6, 4), constrained_layout=True)
 
 # Get colours for bars
 pal = sns.color_palette('Blues', df_monthly_output.shape[0])
@@ -120,16 +123,16 @@ sns.barplot(data=df_monthly_output,
 
 # Get x labels
 x_labels = [d.strftime('%b\n%y') for d in df_monthly_output['date_clean']]
-ax.set_xticklabels(labels=x_labels, fontsize=10, color='black')
+ax.set_xticklabels(labels=x_labels, color='black')
 
 # Chart labels and axes
 ax.set_ylim((0, 5.3))
 ax.set_xlabel('')
 ax.set_ylabel('')
-ax.set_yticks([])
+#ax.set_yticks([])
 
-ax.set_title('Average review score (stars) by month (months with 5 reviews or fewer are omitted)',
-             fontsize=10)
+ax.set_title('Average review score (stars) by month',
+             )
 
 # Get data labels
 add_data_labels(ax, label_fmt='{:.1f}')
@@ -138,13 +141,13 @@ add_data_labels(ax, label_fmt='{:.1f}')
 # sns.despine(fig=fig, left=True)
 
 # Write to streamlit
-st.pyplot(fig)
+left.pyplot(fig)
 
 
 # 2: Review score breakdown
 
 # Set up plot space
-fig2, ax2 = plt.subplots(figsize=(6, 2), constrained_layout=True)
+fig2, ax2 = plt.subplots(figsize=(6, 4), constrained_layout=True)
 
 # Group number of reviews by score
 df_reviews_agg = df_big_easy_clean.groupby('reviewRating').agg(num=('date_clean', 'count')).reset_index()
@@ -163,21 +166,22 @@ sns.barplot(data=df_reviews_filled,
             x='reviewRating',
             y='num_reviews',
             ax=ax2,
+            dodge=True,
             palette=np.array(sns.color_palette("RdYlGn", n_colors=df_reviews_filled.shape[0])))
 
 # Get y limit by taking max number of reviews for given rating and adding 20%
 max_y = df_reviews_filled['num_reviews'].max() * 1.2
 
 # Chart labels and axes
-ax2.set_xticklabels(labels=[f'{str(i+1)} star{"s" if i>1 else ""}' for i in range(5)],
-                    fontsize=10,
+ax2.set_xticklabels(labels=[f'{str(i+1)} star{"s" if i>1 else ""}\n' for i in range(5)],
+                    
                     color='black')
-ax2.set_alpha(0.9)
+ax2.set_alpha(0.1)
 ax2.set_xlabel('')
 ax2.set_ylabel('')
-ax2.set_yticks([])
+# ax2.set_yticks([])
 ax2.set_title('Number of reviews by score (stars)',
-              fontsize=10)
+              )
 ax2.set_ylim((0, max_y))
 
 # Get data labels
@@ -186,7 +190,7 @@ add_data_labels(ax2, label_fmt='{:.0f}')
 # Despine
 # sns.despine(fig=fig2, left=True)
 
-st.pyplot(fig2)
+right.pyplot(fig2)
 
 
 # ################### #
@@ -208,91 +212,7 @@ df_big_easy_filt = df_big_easy_clean[df_big_easy_clean['review_clean'].str.conta
 df_monthly_output_filt = df_big_easy_filt.set_index('date_clean').resample('M')['reviewRating'].agg(('mean',
                                                                                                  'count')).reset_index()
 
-# Round 'mean' to 1 decimal place
-df_monthly_output_filt['mean'] = df_monthly_output_filt['mean'].map(lambda n: np.around(n, 1))
 
-# Set up plot space
-fig3, ax3 = plt.subplots(figsize=(6, 2), constrained_layout=True)
-
-# Get colours for bars
-pal3 = sns.color_palette('Greens', df_monthly_output_filt.shape[0])
-rank3 = df_monthly_output_filt['mean'].argsort().argsort()
-
-sns.barplot(data=df_monthly_output_filt,
-            x='date_clean',
-            y='mean',
-            ax=ax3,
-            palette=np.array(pal3)[rank3])
-
-# Get x labels
-x_labels3 = [d.strftime('%b\n%y') for d in df_monthly_output_filt['date_clean']]
-ax3.set_xticklabels(labels=x_labels, fontsize=10, color='black')
-
-# Chart labels and axes
-ax3.set_ylim((0, 5.3))
-ax3.set_xlabel('')
-ax3.set_ylabel('')
-ax3.set_yticks([])
-
-ax3.set_title('Average review score (stars) by month',
-             fontsize=10)
-
-# Get data labels
-add_data_labels(ax3, label_fmt='{:.1f}')
-
-# Despine
-# sns.despine(fig=fig, left=True)
-
-# Write to streamlit
-st.pyplot(fig3)
-
-
-# 2: Review score breakdown
-
-# Set up plot space
-fig4, ax4 = plt.subplots(figsize=(6, 2), constrained_layout=True)
-
-# Group number of reviews by score
-df_reviews_agg_filt = df_big_easy_filt.groupby('reviewRating').agg(num=('date_clean', 'count')).reset_index()
-
-# Get continuous set of star ratings
-df_reviews_filled_filt = pd.DataFrame(columns=['reviewRating', 'num_reviews'],
-                                      data=list(zip([1, 2, 3, 4, 5], [0, 0, 0, 0, 0])))
-df_reviews_filled_filt = pd.merge(df_reviews_filled_filt,
-                                     df_reviews_agg_filt,
-                                     how='left',
-                                     on='reviewRating')
-df_reviews_filled_filt['num_reviews'] = [0 if n != n else n for n in df_reviews_filled_filt['num']]
-
-# Plot
-sns.barplot(data=df_reviews_filled_filt,
-            x='reviewRating',
-            y='num_reviews',
-            ax=ax4,
-            palette=np.array(sns.color_palette("RdYlGn", n_colors=df_reviews_filled_filt.shape[0])))
-
-# Get y limit by taking max number of reviews for given rating and adding 20%
-max_y4 = df_reviews_filled_filt['num_reviews'].max() * 1.2
-
-# Chart labels and axes
-ax4.set_xticklabels(labels=[f'{str(i+1)} star{"s" if i>1 else ""}' for i in range(5)],
-                    fontsize=10,
-                    color='black')
-ax4.set_alpha(0.9)
-ax4.set_xlabel('')
-ax4.set_ylabel('')
-ax4.set_yticks([])
-ax4.set_title('Number of reviews by score (stars)',
-              fontsize=10)
-ax4.set_ylim((0, max_y4))
-
-# Get data labels
-add_data_labels(ax4, label_fmt='{:.0f}')
-
-# Despine
-# sns.despine(fig=fig2, left=True)
-
-st.pyplot(fig4)
 
 
 
