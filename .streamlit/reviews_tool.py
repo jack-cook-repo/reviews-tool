@@ -7,9 +7,13 @@ import seaborn as sns
 from matplotlib import pyplot as plt
 from datetime import datetime
 
+sns.set(font='sans-serif',
+        style='ticks')
+
 # Load initial dataframe
 FILE_PATH = '/Users/jackcook/PycharmProjects/reviews-tool/data/processed_data/df_big_easy_clean.csv'
 raw_data = pd.read_csv(FILE_PATH)
+
 
 @st.cache
 def get_date():
@@ -21,6 +25,7 @@ if 'review_data' not in st.session_state:
     st.session_state.review_data = raw_data
 
 
+@st.cache
 def get_review_data(start_date, end_date):
     review_data = pd.read_csv(
         '/Users/jackcook/PycharmProjects/reviews-tool/data/processed_data/df_big_easy_clean.csv')
@@ -44,7 +49,7 @@ date_end = st.sidebar.date_input(
     max_value=current_date,
     value=current_date)
 
-# Set up a button to
+# Set up a button to filter data
 st.sidebar.button('Click to refresh data',
                   on_click=get_review_data,
                   args=(date_start, date_end))
@@ -59,8 +64,8 @@ df_big_easy_clean['date_clean'] = df_big_easy_clean['date_clean'].astype('dateti
 
 # Hack to align title to center
 _, header, _ = st.beta_columns((1, 2, 1))
-header.write('# High level analysis')
-st.write(' ') # Space
+st.markdown("<h1 style='text-align: center;'>Summary</h1>", unsafe_allow_html=True)
+st.write(' ')  # Space
 
 df_monthly_output = df_big_easy_clean.set_index('date_clean').resample('M')['reviewRating'].agg(('mean',
                                                                                                  'count')).reset_index()
@@ -73,75 +78,66 @@ df_monthly_output['mean'] = np.where(df_monthly_output['count'] > 5,
 # Round 'mean' to 1 decimal place
 df_monthly_output['mean'] = df_monthly_output['mean'].map(lambda n: np.around(n, 1))
 
-row1_1, row1_2, row1_3 = st.beta_columns(3)
-row1_1.write(f'''**Avg. rating**:\n
-{np.around(df_big_easy_clean['reviewRating'].mean(),1)} stars
+# row1_1, row1_2, row1_3 = st.beta_columns(3)
+st.write(f'''
+Over the time period selected, there were **{df_big_easy_clean.shape[0]} reviews**, with an average score of
+**{np.around(df_big_easy_clean['reviewRating'].mean(),1)} stars**
 ''')
 
 # Plotting trends over time
-# Get colours for bars
-pal = sns.color_palette('Blues', df_monthly_output.shape[0])
-rank = df_monthly_output['mean'].argsort().argsort()
 
 # Set up sub plots
-fig, axs = plt.subplots(nrows=2, ncols=1, constrained_layout=True)
+fig, ax = plt.subplots(figsize=(6, 2.5), constrained_layout=True)
 
-for i in range(2):
-    ax = axs[i]
+# Config for plots
+dict_plot = {0: {'title': 'Average review score (stars) by month\n(months with 5 reviews or fewer are omitted)',
+                 'ylim': (0, 5),
+                 'colours': 'Blues',
+                 'y': 'mean',
+                 'ylabel_fmt': '{:.1f}'},
+             1: {'title': 'Number of reviews by month',
+                 'ylim': None,
+                 'colours': 'Oranges',
+                 'y': 'count',
+                 'ylabel_fmt': '{:.0f}'}}
+
+for i in range(1):
+    # Get plot config
+    plot_config = dict_plot[i]
+
+    # Get colours for bars
+    pal = sns.color_palette(plot_config['colours'], df_monthly_output.shape[0])
+    rank = df_monthly_output['mean'].argsort().argsort()
+
     sns.barplot(data=df_monthly_output,
                 x='date_clean',
-                y='mean',
+                y=plot_config['y'],
                 ax=ax,
                 palette=np.array(pal)[rank])
 
     # Get x labels
     x_labels = [d.strftime('%b\n%y') for d in df_monthly_output['date_clean']]
-    ax.set_xticklabels(labels=x_labels)
+    ax.set_xticklabels(labels=x_labels, fontsize=10, color='black')
 
     # Chart labels and axes
-    ax.set_ylim((0, 5))
+    if plot_config['ylim'] is not None:
+        ax.set_ylim(plot_config['ylim'])
     ax.set_xlabel('')
     ax.set_ylabel('')
     ax.set_yticks([])
 
-    ax.set_title('Average review score (stars) by month\n(months with 5 or less reviews are omitted)')
+    ax.set_title(plot_config['title'],
+                 fontsize=10)
 
     # Get data labels
     for p in ax.patches:
         if p.get_height() == 0:
             # Don't label cases where we have removed the review score
             continue
-        ax.annotate('{:.1f}'.format(p.get_height()),  # Get value
+        ax.annotate(plot_config['ylabel_fmt'].format(p.get_height()),  # Get value
                     (p.get_x() + p.get_width() / 2., p.get_height()),  # Get position
                     ha='center', va='center', fontsize=10, color='black',
                     xytext=(0, 5), textcoords='offset points')
 
 st.pyplot(fig)
-
-# # Set up column names for plotting
-# df_chart = df_monthly_output.copy(deep=True).rename(columns={'date_clean': 'Month',
-#                                                              'mean': 'Average review',
-#                                                              'count': 'Number of reviews'})
-
-# Plot first chart
-# st.altair_chart(alt.Chart(df_chart).mark_bar()
-#     .encode(
-#         x=alt.X('Month:O'),
-#         y=alt.Y('Average review:Q', scale=alt.Scale(domain=[0, 5])),
-#         tooltip=['Month', 'Average review']
-#     ).configure_mark(
-#         opacity=0.9,
-#         #color='blue'
-#     ).configure_axis(
-#         labelFontSize=12,
-#         titleFontSize=15,
-#         gridOpacity=0.5,
-#         labelAngle=0,
-#         minExtent=1,
-#         labelSeparation=100
-#     ).properties(
-#         width=800,
-#         height=400), use_container_width=True)
-
-
 
