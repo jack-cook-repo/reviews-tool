@@ -346,8 +346,8 @@ def review_extract_term(text, match_str):
 
         # Then, get n words either side of each split
         n_words = 30
-        leading_str_trim = ' '.join(leading_words[-n_words:])
         leading_str_trim = ('...' if len(leading_words) > n_words else '') + ' '.join(leading_words[-n_words:])
+        leading_str_trim = leading_str_trim[2:] if leading_str_trim[:2] == 's ' else leading_str_trim
         trailing_str_trim = ' '.join(trailing_words[:n_words]) + ('...' if len(trailing_words) > n_words else '')
 
         # Check if we need spaces before joining text together
@@ -418,5 +418,7 @@ def get_stars(n):
 df_review_display['Rating'] = [f'{get_stars(stars)}' for stars in df_review_display['reviewRating']]
 df_review_display['Review date'] = [str(d)[:10] for d in df_review_display['Review date']]
 
-show(df_review_display[['Review date', 'Rating', 'Review extract']].sort_values(by='Review date',
-                                                                                ascending=False).reset_index(drop=True))
+with st.beta_expander(f'Click here to look at extracts from customer reviews that contain "{term}"'):
+    st.write(' ')
+    show(df_review_display[['Review date', 'Rating', 'Review extract']].sort_values(by='Review date',
+                                                                                    ascending=False).reset_index(drop=True))
