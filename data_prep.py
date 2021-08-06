@@ -93,7 +93,7 @@ def clean_text(text):
     :param text:
     :return: Text in lower case, with no stop words, punctuation, or numbers
     '''
-    text_lower = text.lower()
+    text_lower = text.lower().strip()
 
     # There will be a better way of doing this
     text_w_not_words = text_lower.replace('would not', 'wouldnt')
@@ -189,6 +189,25 @@ df_big_easy_clean = df_big_easy_eng.copy(deep=True)
 
 df_big_easy_clean['review_clean'] = df_big_easy_clean.apply(lambda row: clean_text(row['reviewBody']),
                                                             axis=1)
+
+# Also apply it by sentence, assuming each sentence is separated by a full stop or punctuation
+list_of_sentence_parts = [re.split(r'\.', re.sub('(!|\?)', '.', rev)) for rev in df_big_easy_clean['reviewBody']]
+list_of_sentence_parts_clean = []
+# Loop through each review, which is a list of sentence parts
+for s_parts in list_of_sentence_parts:
+    s_parts_clean = []
+
+    # Then loop through each sentence part within the review, and clean them
+    for s in s_parts:
+        s_trim = s.strip()
+        if len(s_trim) < 1:
+            continue
+        s_parts_clean.append(clean_text(s_trim))
+
+    # Add back to main list
+    list_of_sentence_parts_clean.append(s_parts_clean)
+
+df_big_easy_clean['review_parts_clean'] = list_of_sentence_parts_clean
 
 df_big_easy_clean.to_csv('data/processed_data/df_big_easy_clean.csv', index=False)
 log.info('Data prep finished')
