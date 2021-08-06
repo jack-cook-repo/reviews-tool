@@ -13,7 +13,8 @@ from nltk.collocations import BigramAssocMeasures, TrigramAssocMeasures, \
 st.set_page_config(layout='centered')
 sns.set(font='sans-serif',
         style='ticks',
-        font_scale=1.4)
+        font_scale=1.4,
+        rc={'axes.facecolor': 'ghostwhite'})
 
 # Load initial dataframe
 FILE_PATH = '/Users/jackcook/PycharmProjects/reviews-tool/data/processed_data/df_big_easy_clean.csv'
@@ -38,6 +39,7 @@ def get_review_data(start_date, end_date):
     st.session_state.review_data = raw_data.query(f'date_clean >= "{start_date}" and date_clean <= "{end_date}"')
 
 
+@st.cache
 def get_num_reviews_by_star_rating(df, star_rating_col, agg_col):
     '''
     Given a dataframe, will group by star_rating_col, count the agg_col, and return a dataframe with
@@ -64,7 +66,7 @@ def get_num_reviews_by_star_rating(df, star_rating_col, agg_col):
     return df_reviews_filled[[star_rating_col, 'num_reviews']]
 
 
-def add_data_labels_and_bar_widths(axis, label_fmt, new_width=0.94):
+def add_data_labels_and_bar_widths(axis, label_fmt, new_width=1):
     '''
     Takes a pyplot axis with a bar chart and adds labels above each bar,
     with format of label_fmt, and sets the bar width to new_width
@@ -95,16 +97,19 @@ def plot_review_score_by_month(ax, color_scheme, df, date_col, reviews_col, ylim
     plus optional y limits, plots a reviews by month barplot onto the axis
     '''
 
-    # Get colours for bars
-    pal = sns.color_palette(color_scheme, n_colors=df.shape[0])
-    rank = df[reviews_col].argsort().argsort()
+    # Set up colour palette with each colour
+    pal = sns.color_palette(color_scheme, n_colors=51)
+
+    # Pick colours based on review score, rounded to nearest decimal place
+    rank = [0 if rev != rev else int(rev * 10) for rev in df[reviews_col]]
 
     # Plot
     sns.barplot(data=df,
                 x=date_col,
                 y=reviews_col,
                 ax=ax,
-                palette=np.array(pal)[rank])
+                # alpha=0.5,
+                palette=np.array(pal)[rank])  # p.array(pal)[rank])
 
     # Get x labels
     x_labels = [d.strftime('%b\n%y') if i % 2 == 0 else '' for (i, d) in enumerate(df[date_col])]
@@ -276,6 +281,7 @@ st.write('''
 
 term = st.selectbox('Pick a word/term from below and the charts below will change!',
                     options=['birthday', 'lobster roll', 'service'])
+
 
 # Filter dataframe for reviews containing that specific term
 df_big_easy_filt = df_big_easy_clean[df_big_easy_clean['review_clean'].str.contains(term)]
