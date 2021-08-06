@@ -110,12 +110,18 @@ def clean_text(text):
     text_further_rep = re.sub(r'(server|waiter|waitress)', 'staff', text_w_not_words)
     text_further_rep = text_further_rep.replace('mins', 'minutes')
     text_further_rep = text_further_rep.replace('hrs', 'hours')
+    text_further_rep = re.sub('£[0-9.]+', 'money', text_further_rep)
 
     # Get tokens
     tokens = text_further_rep.split(' ')
 
     # Then remove stopwords
-    sw = stopwords.words('english')
+    sw = [w for w in stopwords.words('english') if w not in ("don't", 'not', 'while', 'no', "couldn't",
+                                                             "didn't", "doesn't", "hadn't", "hasn't",
+                                                             "haven't", "isn't", "mightn't", "mustn't",
+                                                             "needn't", "shan't", "shouldn't", "wasn't",
+                                                             "weren't", "won't", "wouldn't")]
+
     tokens_no_sw = [t for t in tokens if t not in sw]
 
     # Then strip punctuation
@@ -200,7 +206,7 @@ for s_parts in list_of_sentence_parts:
     # Then loop through each sentence part within the review, and clean them
     for s in s_parts:
         s_trim = s.strip()
-        if len(s_trim) < 1:
+        if len(s_trim) < 2:
             continue
         s_parts_clean.append(clean_text(s_trim))
 
