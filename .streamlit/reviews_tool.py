@@ -279,12 +279,14 @@ st.write('''
     This section allows you to really zoom in on a specific word or phrase, and see what your customers think.
 ''')
 
+
 term = st.selectbox('Pick a word/term from below and the charts below will change!',
-                    options=['birthday', 'lobster roll', 'service'])
+                    options=['birthday', 'lobster roll', 'mac and cheese', 'service'])
 
 
 # Filter dataframe for reviews containing that specific term
-df_big_easy_filt = df_big_easy_clean[df_big_easy_clean['review_clean'].str.contains(term)]
+term_filt = term.replace(' and ', ' ')  # Hacky
+df_big_easy_filt = df_big_easy_clean[df_big_easy_clean['review_clean'].str.contains(term_filt)].copy(deep=True)
 
 st.write(f'''
     Over the time period selected, there were **{df_big_easy_filt.shape[0]} reviews** that mentioned "{term}", 
@@ -332,7 +334,7 @@ right2.pyplot(fig4)
 # Get relevant parts of reviews
 def review_extract_term(text, match_str):
     matches = re.split(match_str,
-                       text.lower())
+                       re.sub(r'mac &', 'mac', text.lower()))
 
     # See how many matches there are
     n_matches = len(matches) - 1
@@ -375,6 +377,8 @@ def review_extract_term(text, match_str):
 # Write to session state
 df_big_easy_filt['Review extract'] = df_big_easy_filt.apply(lambda row: review_extract_term(row['reviewBody'],
                                                                                             term), axis=1)
+
+# st.write(df_big_easy_filt)
 
 
 def show(df):
