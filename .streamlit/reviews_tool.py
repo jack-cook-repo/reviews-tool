@@ -462,36 +462,42 @@ def review_extract_term(text, term):
         # Ditch every 3rd term as per above logic
         matches = [m for (i, m) in enumerate(matches_prelim) if (i+1) % 3 != 0]
     else:
-        match_str = term  # No further processing needed
+        match_str = r'(' + term + ')'  # No further processing needed
         matches = re.split(match_str,
                            text.lower())
 
-    # See how many matches there are
-    n_matches = len(matches) - 1
+    # See how many match string there are
+    n_matches = len(matches)
+
+    # See how many triplets there are
+    n_triplets = int((n_matches - 1) / 2)
 
     # Loop through each match, remembering that every 2nd item is the match string
     # So every 3rd item we want to put a separator to keep multiple matches apart (if there are more than 3)
     res = []
-    for i in range(n_matches+1):
-        pos = i+1
-        n_tokens = 30
-        # Every first word in group of 3
-        if (pos-1) % 3 == 0:
-            res.append(' '.join(matches[i].split()[-n_tokens:]) + ' ')
-        # Every second word is the match term
-        elif (pos+1) % 3 == 0:
-            res.append(matches[i])
-        # Third word
-        else:
-            trailing_str_trim = ' '.join(matches[i].split()[:n_tokens]) + (' *** ' if n_matches > 3 else '')
+    slice_start = 0
+    for triplet in range(n_triplets):
+        slice_end = slice_start + 3
+        matches_triplet = matches[slice_start: slice_end]
+        for i in range(3):
+            n_tokens = 30
+            # Every first word in group of 3
+            if i == 0:
+                res.append(' '.join(matches_triplet[i].split()[-n_tokens:]) + ' ')
+            # Every second word is the match term
+            elif i == 1:
+                res.append(matches_triplet[i])
+            # Third word
+            else:
+                trailing_str_trim = ' '.join(matches_triplet[i].split()[:n_tokens]) + (' *** ' if n_matches > 3 else '')
 
-            # Check if we need a space or not
-            trailing_space = '' if (len(trailing_str_trim) == 0
-                                    or re.search(r'[^A-z]', trailing_str_trim[0]) is not None
-                                    or re.search(r's[^A-z]', trailing_str_trim[:3]) is not None) else ' '  # Plurals
+                # Check if we need a space or not
+                trailing_space = '' if (len(trailing_str_trim) == 0
+                                        or re.search(r'[^A-z]', trailing_str_trim[0]) is not None
+                                        or re.search(r's[^A-z]', trailing_str_trim[:2]) is not None) else ' '  # Plurals
 
-            res.append(trailing_space + trailing_str_trim)
-
+                res.append(trailing_space + trailing_str_trim)
+        slice_start += 2
     return ''.join(res).strip()
 
 
