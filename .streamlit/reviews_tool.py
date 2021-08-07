@@ -1,4 +1,5 @@
 import re
+import copy
 import pandas as pd
 import numpy as np
 import streamlit as st
@@ -17,9 +18,15 @@ sns.set(font='sans-serif',
         font_scale=1.2,
         rc={'axes.facecolor': 'ghostwhite'})
 
-# Load initial dataframe
-FILE_PATH = '/Users/jackcook/PycharmProjects/reviews-tool/data/processed_data/df_big_easy_clean.csv'
-st.session_state.raw_data = pd.read_csv(FILE_PATH)
+
+# Set up sidebar
+st.sidebar.write('### I want to look at reviews over...')
+
+if 'period_filt' not in st.session_state:
+    st.session_state.period_filt = 'All time'
+
+st.session_state.period_filt = st.sidebar.radio(label='',
+                                                options=['All time', 'Past month', 'Past 3 months', 'Past year'])
 
 
 @st.cache
@@ -31,12 +38,14 @@ def get_review_data(date_filt):
     '''
     Filters the session state review_data dataframe based on start and end dates
     '''
+    # Load initial dataframe
+    FILE_PATH = '/Users/jackcook/PycharmProjects/reviews-tool/data/processed_data/df_big_easy_clean.csv'
+    raw_data = pd.read_csv(FILE_PATH)
 
     current_date = get_date()
-    raw_data = st.session_state.raw_data
 
     if date_filt == 'All time':
-        st.session_state.review_data = raw_data
+        return raw_data
     else:
         if date_filt == 'Past month':
             start_date = current_date - relativedelta(months=1)
@@ -44,22 +53,14 @@ def get_review_data(date_filt):
             start_date = current_date - relativedelta(years=1)
         elif date_filt == 'Past 3 months':
             start_date = current_date - relativedelta(months=3)
+        else:
+            raise ValueError('Invalid date filter picked')
 
-        st.session_state.review_data = raw_data.query(f'date_clean > "{start_date}"')
+        return raw_data.query(f'date_clean > "{start_date}"')
 
-
-# Set up sidebar
-st.sidebar.write('### I want to look at reviews over...')
-
-if 'period_filt' not in st.session_state:
-    st.session_state.period_filt = 'All time'
-
-st.session_state.period_filt = st.sidebar.radio(label='',
-                                                options=['All time', 'Past month', 'Past 3 months', 'Past year'])
 
 # Caches results for speed
-get_review_data(st.session_state.period_filt)
-df_big_easy_clean = st.session_state.review_data
+df_big_easy_clean = get_review_data(st.session_state.period_filt)
 
 
 def get_num_reviews_by_star_rating(df, star_rating_col, agg_col):
@@ -113,15 +114,7 @@ def add_data_labels_and_bar_widths(axis, label_fmt, new_width=1):
         p.set_x(p.get_x() + diff * .5)
 
 
-# Initialise empty plots
-if 'fig1' not in st.session_state:
-    st.session_state.fig1, _ = plt.subplots()
-    st.session_state.fig2, _ = plt.subplots()
-    st.session_state.fig4, _ = plt.subplots()
-    st.session_state.fig5, _ = plt.subplots()
-
-
-def plot_review_score_by_month(mode, color_scheme, df, date_col, reviews_col, ylim=(0, 5.3)):
+def plot_review_score_by_month(color_scheme, df, date_col, reviews_col, ylim=(0, 5.3)):
     '''
     Given a Matplotlib axis, and a colour scheme, input dataframe (with date and reviews columns),
     plus optional y limits, plots a reviews by month barplot onto the axis
@@ -134,17 +127,21 @@ def plot_review_score_by_month(mode, color_scheme, df, date_col, reviews_col, yl
     # Pick colours based on review score, rounded to nearest decimal place
     rank = [0 if rev != rev else int(rev * 10) for rev in df[reviews_col]]
 
-    # Plot
-    sns.barplot(data=df,
-                x=date_col,
-                y=reviews_col,
-                ax=ax,
-                # alpha=0.5,
-                palette=np.array(pal)[rank])  # p.array(pal)[rank])
+    if df.shape[0] > 0:
+        # Plot
+        sns.barplot(data=df,
+                    x=date_col,
+                    y=reviews_col,
+                    ax=ax,
+                    # alpha=0.5,
+                    palette=np.array(pal)[rank])
 
-    # Get x labels
-    x_labels = [d.strftime('%b\n%y') if i % 2 == 0 else '' for (i, d) in enumerate(df[date_col])]
-    ax.set_xticklabels(labels=x_labels, color='black')
+        # Get x labels
+        if st.session_state.period_filt in ('Past year', 'All time'):
+            x_labels = [d.strftime('%b\n%y') if i % 2 == 0 else '' for (i, d) in enumerate(df[date_col])]
+        else:
+            x_labels = [d.strftime('%b\n%y') for d in df[date_col]]
+        ax.set_xticklabels(labels=x_labels, color='black')
 
     # Chart labels, axes, and title
     ax.set_ylim(ylim)
@@ -155,13 +152,10 @@ def plot_review_score_by_month(mode, color_scheme, df, date_col, reviews_col, yl
     # Finally, add data labels and set bar widths
     add_data_labels_and_bar_widths(ax, label_fmt='{:.1f}')
 
-    if mode == 'overview':
-        st.session_state.fig1 = fig
-    elif mode == 'detail':
-        st.session_state.fig4 = fig
+    return fig
 
 
-def plot_reviews_by_star_rating(mode, color_scheme, df, num_reviews_col, star_rating_col):
+def plot_reviews_by_star_rating(color_scheme, df, num_reviews_col, star_rating_col):
     '''
     Given a Matplotlib axis, color scheme, input dataframe (with star rating and number of reviews columns),
     plus optional y limits, plots a reviews by month barplot onto the axis
@@ -190,20 +184,17 @@ def plot_reviews_by_star_rating(mode, color_scheme, df, num_reviews_col, star_ra
     # Get data labels
     add_data_labels_and_bar_widths(ax, label_fmt='{:.0f}')
 
-    if mode == 'overview':
-        st.session_state.fig2 = fig
-    elif mode == 'detail':
-        st.session_state.fig5 = fig
+    return fig
 
 
 # Load data
 df_big_easy_clean['date_clean'] = df_big_easy_clean['date_clean'].astype('datetime64[D]')
 
 # Write title
-text_colour = '#ed3e1f'
+text_colour = '#e03326'
 st.markdown(f'<h1 style=color:{text_colour}>🦞 Big Easy reviews app</h1>', unsafe_allow_html=True)
 st.write('''
-    Welcome! 
+    ### Welcome! 
     
     This app uses Google reviews data for your Canary Wharf restaurant to help you better
     understand your customers and explore:
@@ -228,7 +219,7 @@ st.write(f'''
     
     Over the time period selected:
     - there were **{df_big_easy_clean.shape[0]} reviews**
-    - with an average score of **{np.around(df_big_easy_clean['reviewRating'].mean(),1)} stars**.
+    - with an average score of **{np.nan_to_num(np.around(df_big_easy_clean['reviewRating'].mean(),1))} stars**.
 ''')
 
 left, right = st.beta_columns(2)
@@ -246,12 +237,11 @@ df_monthly_output['mean'] = np.where(df_monthly_output['count'] > 5,
 df_monthly_output['mean'] = df_monthly_output['mean'].map(lambda n: np.around(n, 1))
 
 # Plot barplot onto axis
-plot_review_score_by_month(mode='overview', color_scheme='Blues',
-                           df=df_monthly_output, date_col='date_clean',
-                           reviews_col='mean')
+fig1= plot_review_score_by_month(color_scheme='Blues',
+                                 df=df_monthly_output, date_col='date_clean',
+                                 reviews_col='mean')
 
 # Write to streamlit
-fig1 = st.session_state.fig1
 left.pyplot(fig1)
 
 
@@ -262,11 +252,10 @@ df_reviews_filled = get_num_reviews_by_star_rating(df=df_big_easy_clean,
                                                    agg_col='date_clean')
 
 # Plot
-plot_reviews_by_star_rating(mode='overview', color_scheme='RdYlGn', df=df_reviews_filled,
-                            num_reviews_col='num_reviews', star_rating_col='reviewRating')
+fig2 = plot_reviews_by_star_rating(color_scheme='RdYlGn', df=df_reviews_filled,
+                                   num_reviews_col='num_reviews', star_rating_col='reviewRating')
 
 # Write to streamlit
-fig2 = st.session_state.fig2
 right.pyplot(fig2)
 
 
@@ -276,11 +265,12 @@ right.pyplot(fig2)
 st.write('''
     ---
     
-    ## 🗣 Things customers talk about in reviews
+    ## 🗣 Things customers are talking about
 
-    This section looks into terms that come up in reviews, and how that affects the score
-
+    Taking a deeper look into your reviews and seeing what topics come up.
 ''')
+
+st.write('')
 
 
 def get_word_clouds(df):
@@ -294,7 +284,7 @@ def get_word_clouds(df):
                    min_word_length=2,
                    relative_scaling=0.8,
                    width=300,
-                   height=200)
+                   height=300)
 
     # Set up count vectorizer
     C = CountVectorizer(ngram_range=(2, 3),
@@ -385,12 +375,10 @@ def get_word_clouds(df):
         axs3[i].set_title(f'Most common terms in {title_stars} reviews')
         axs3[i].axis('off')
 
-    st.session_state.fig3 = fig3
+    return fig3
 
 
-get_word_clouds(df_big_easy_clean)
-fig3 = st.session_state.fig3
-
+fig3 = get_word_clouds(df_big_easy_clean)
 fig3.tight_layout()
 
 st.pyplot(fig3)
@@ -414,7 +402,9 @@ terms = ['birthday',
          'atmosphere',
          'live music',
          'staff',
-         'service charge']
+         'service charge',
+         'wait minutes']
+
 
 term = st.selectbox('Pick a word/term from below and the charts below will change!',
                     options=sorted(list(set(terms))))
@@ -426,7 +416,7 @@ df_big_easy_filt = df_big_easy_clean[df_big_easy_clean['review_clean'].str.conta
 
 st.write(f'''
     Over the time period selected, there were **{df_big_easy_filt.shape[0]} reviews** that mentioned "{term}", 
-    with an average score of **{np.around(df_big_easy_filt['reviewRating'].mean(),1)} stars**
+    with an average score of **{np.nan_to_num(np.around(df_big_easy_filt['reviewRating'].mean(),1))} stars**
 ''')
 
 # Set up partition
@@ -440,12 +430,11 @@ df_monthly_filt = df_big_easy_filt.set_index('date_clean').resample('M')['review
 df_monthly_filt['mean'] = df_monthly_filt['mean'].map(lambda n: np.around(n, 1))
 
 # Plot barplot onto axis
-plot_review_score_by_month(mode='detail', color_scheme='Blues',
-                           df=df_monthly_filt, date_col='date_clean',
-                           reviews_col='mean', ylim=(0, 5.5))
+fig4 = plot_review_score_by_month(color_scheme='Blues',
+                                  df=df_monthly_filt, date_col='date_clean',
+                                  reviews_col='mean', ylim=(0, 5.5))
 
 # Write to streamlit
-fig4 = st.session_state.fig4
 left2.pyplot(fig4)
 
 
@@ -456,16 +445,21 @@ df_reviews_filled_filt = get_num_reviews_by_star_rating(df=df_big_easy_filt,
                                                         agg_col='date_clean')
 
 # Plot
-plot_reviews_by_star_rating(mode='detail', color_scheme='RdYlGn', df=df_reviews_filled_filt,
-                            num_reviews_col='num_reviews', star_rating_col='reviewRating')
+fig5 = plot_reviews_by_star_rating(color_scheme='RdYlGn', df=df_reviews_filled_filt,
+                                   num_reviews_col='num_reviews', star_rating_col='reviewRating')
 
 # Write to streamlit
-fig5 = st.session_state.fig5
 right2.pyplot(fig5)
 
 
 # Get relevant parts of reviews
 def review_extract_term(text, term):
+
+    # Apply extra replacement steps
+    text_further_rep = re.sub(r'(server|waiter|waitress)', 'staff', text.lower())
+    text_further_rep = text_further_rep.replace('mins', 'minutes')
+    text_further_rep = text_further_rep.replace('hrs', 'hours')
+    text_further_rep = re.sub('£[0-9.]+', 'money', text_further_rep)
 
     # For terms with >1 word, allow for gaps between word with spaces/characters, up to 15 characters/spaces total
     term_split = term.split()
@@ -481,14 +475,14 @@ def review_extract_term(text, term):
         #
         # We want to ignore the 2nd capture group, or every 3rd item in the list.
         matches_prelim = re.split(match_str,
-                                  text.lower())
+                                  text_further_rep.lower())
 
         # Ditch every 3rd term as per above logic
         matches = [m for (i, m) in enumerate(matches_prelim) if (i+1) % 3 != 0]
     else:
         match_str = r'(' + term + ')'  # No further processing needed
         matches = re.split(match_str,
-                           text.lower())
+                           text_further_rep.lower())
 
     # See how many match string there are
     n_matches = len(matches)
@@ -525,9 +519,12 @@ def review_extract_term(text, term):
     return ''.join(res).strip()
 
 
-# Write to session state
-df_big_easy_filt['Review extract'] = df_big_easy_filt.apply(lambda row: review_extract_term(row['reviewBody'],
-                                                                                            term), axis=1)
+# Get review extract
+if df_big_easy_filt.shape[0] > 0:
+    df_big_easy_filt['Review extract'] = df_big_easy_filt.apply(lambda row: review_extract_term(row['reviewBody'],
+                                                                                                term), axis=1)
+else:
+    df_big_easy_filt['Review extract'] = None
 
 
 def show(df):
@@ -577,7 +574,10 @@ def get_stars(n):
 df_review_display['Rating'] = [f'{get_stars(stars)}' for stars in df_review_display['reviewRating']]
 df_review_display['Review date'] = [str(d)[:10] for d in df_review_display['Review date']]
 
-with st.beta_expander(f'See what people have to say about "{term}"'):
+st.write('')
+st.write(f'#### See what people have to say about "{term}"')
+st.write('')
+with st.beta_expander('Click to expand'):
     st.write(' ')
     show(df_review_display[['Review date', 'Rating', 'Review extract']].sort_values(by='Review date',
                                                                                     ascending=False).reset_index(drop=True))
