@@ -8,6 +8,7 @@ from matplotlib import pyplot as plt
 from datetime import datetime
 from nltk.collocations import BigramAssocMeasures, TrigramAssocMeasures, \
     BigramCollocationFinder, TrigramCollocationFinder
+from sklearn.feature_extraction.text import TfidfVectorizer
 
 # Set up initial config
 st.set_page_config(layout='centered')
@@ -264,9 +265,61 @@ st.write('''
     ## 🗣 Things customers talk about in reviews
 
     This section looks into terms that come up in reviews, and how that affects the score
-    
-    **Placeholder for terms that turn up frequently in reviews**
+
 ''')
+
+fig3, axs3 = plt.subplots(nrows=1, ncols=3, figsize=(12, 6),
+                          constrained_layout=True)
+
+# Bucket reviews into 1-2 stars, 3-4 stars, and 5 stars
+review_buckets = {0: [1, 2],
+                  1: [3, 4],
+                  2: [5, 5]}
+
+# Set up vectorizer
+T = TfidfVectorizer(ngram_range=(2, 2),
+                    max_df=0.5,
+                    min_df=5,
+                    stop_words='english')
+
+# Strip 'big easy' and 'canary wharf'
+df_big_easy_clean['review_tfidf'] = [re.sub(r'(big easy|canary wharf)', '', s) for s in
+                                     df_big_easy_clean['review_clean']]
+
+# Get scores
+res = T.fit_transform(df_big_easy_clean['review_tfidf'])
+
+# Set up dataframe
+df_res = pd.DataFrame(data=res.todense(),
+                      columns=T.get_feature_names())
+
+for i in range(3):
+
+    # Get review bucket
+    rev_min, rev_max = review_buckets[i]
+
+    # Filter for certain reviews
+    df_res_filt = df_res[[rev_min <= r <= rev_max for r in df_big_easy_clean['reviewRating']]].copy(deep=True)
+    print(df_res_filt.shape)
+
+    # Turn into plottable format
+    df_plot = df_res_filt.T.apply(lambda row: np.mean(row), axis=1).sort_values(ascending=False).reset_index()[:30]
+
+    # Plot
+    sns.barplot(data=df_plot,
+                # When you use reset_index() on a series, you end up with index and 0 as column names
+                x=0,
+                y='index',
+                ax=axs3[i])
+
+    if rev_min == rev_max:
+        title_stars = f'{rev_min} star'
+    else:
+        title_stars = f'{rev_min}-{rev_max} star'
+
+    axs3[i].set_title(f'Most common terms in {title_stars} reviews')
+
+st.pyplot(fig3)
 
 
 # ################### #
@@ -304,20 +357,20 @@ df_monthly_filt = df_big_easy_filt.set_index('date_clean').resample('M')['review
 df_monthly_filt['mean'] = df_monthly_filt['mean'].map(lambda n: np.around(n, 1))
 
 # Set up plot space
-fig3, ax3 = plt.subplots(figsize=(6, 4), constrained_layout=True)
+fig4, ax4 = plt.subplots(figsize=(6, 4), constrained_layout=True)
 
 # Plot barplot onto axis
-plot_review_score_by_month(ax=ax3, color_scheme='Blues',
+plot_review_score_by_month(ax=ax4, color_scheme='Blues',
                            df=df_monthly_filt, date_col='date_clean',
                            reviews_col='mean', ylim=(0, 5.5))
 
 # Write to streamlit
-left2.pyplot(fig3)
+left2.pyplot(fig4)
 
 
 # 2: Review score breakdown
 # Set up plot space
-fig4, ax4 = plt.subplots(figsize=(6, 4), constrained_layout=True)
+fig5, ax5 = plt.subplots(figsize=(6, 4), constrained_layout=True)
 
 # Group number of reviews by score
 df_reviews_filled_filt = get_num_reviews_by_star_rating(df=df_big_easy_filt,
@@ -325,10 +378,10 @@ df_reviews_filled_filt = get_num_reviews_by_star_rating(df=df_big_easy_filt,
                                                         agg_col='date_clean')
 
 # Plot
-plot_reviews_by_star_rating(ax=ax4, color_scheme='RdYlGn', df=df_reviews_filled_filt,
+plot_reviews_by_star_rating(ax=ax5, color_scheme='RdYlGn', df=df_reviews_filled_filt,
                             num_reviews_col='num_reviews', star_rating_col='reviewRating')
 
-right2.pyplot(fig4)
+right2.pyplot(fig5)
 
 
 # Get relevant parts of reviews

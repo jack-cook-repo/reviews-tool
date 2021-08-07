@@ -5,6 +5,8 @@ import re
 
 from datetime import datetime, timedelta
 from nltk.corpus import words, stopwords
+from nltk.stem.wordnet import WordNetLemmatizer
+wnl = WordNetLemmatizer()
 
 
 def parse_date(string_date):
@@ -128,10 +130,10 @@ def clean_text(text):
     tokens_alpha = [re.sub('[^A-z]', '', t) for t in tokens_no_sw]
 
     # Then take lemmas
-    # lemmas = [wnl.lemmatize(t, pos='v') for t in tokens_alpha]
+    lemmas = [wnl.lemmatize(t, pos='v') for t in tokens_alpha]
 
     # Rejoin as single string
-    text_clean = ' '.join(tokens_alpha)  # lemmas
+    text_clean = ' '.join(lemmas)  # lemmas
 
     # Handle duplicate spaces
     return re.sub(r'(\s)+', ' ', text_clean)
