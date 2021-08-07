@@ -113,6 +113,7 @@ def clean_text(text):
     text_further_rep = text_further_rep.replace('mins', 'minutes')
     text_further_rep = text_further_rep.replace('hrs', 'hours')
     text_further_rep = re.sub('£[0-9.]+', 'money', text_further_rep)
+    text_further_rep = re.sub(r'(big easy|canary wharf)', '', text_further_rep)
 
     # Get tokens
     tokens = text_further_rep.split(' ')
@@ -129,8 +130,8 @@ def clean_text(text):
     # Then strip punctuation
     tokens_alpha = [re.sub('[^A-z]', '', t) for t in tokens_no_sw]
 
-    # Then take lemmas
-    lemmas = [wnl.lemmatize(t, pos='v') for t in tokens_alpha]
+    # Then take lemmas, excluding cases where it makes the word look a bit weird
+    lemmas = [wnl.lemmatize(t, pos='v') if t not in ('bit', 'amazing') else t for t in tokens_alpha]
 
     # Rejoin as single string
     text_clean = ' '.join(lemmas)  # lemmas

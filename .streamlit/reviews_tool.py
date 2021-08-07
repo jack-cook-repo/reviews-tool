@@ -6,15 +6,14 @@ import seaborn as sns
 
 from matplotlib import pyplot as plt
 from datetime import datetime
-from nltk.collocations import BigramAssocMeasures, TrigramAssocMeasures, \
-    BigramCollocationFinder, TrigramCollocationFinder
-from sklearn.feature_extraction.text import TfidfVectorizer
+from wordcloud import WordCloud
+from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
 
 # Set up initial config
-st.set_page_config(layout='centered')
+st.set_page_config(layout='wide')
 sns.set(font='sans-serif',
         style='ticks',
-        font_scale=1.4,
+        font_scale=1.2,
         rc={'axes.facecolor': 'ghostwhite'})
 
 # Load initial dataframe
@@ -210,8 +209,9 @@ st.write(f'''
     This section covers some high level metrics on reviews - average scores by month, and number of reviews by star rating.
     (For average scores by month, we exclude months with 5 reviews or fewer).
     
-    Over the time period selected, there were **{df_big_easy_clean.shape[0]} reviews**, with an average score of
-    **{np.around(df_big_easy_clean['reviewRating'].mean(),1)} stars**.
+    Over the time period selected:
+    - there were **{df_big_easy_clean.shape[0]} reviews**
+    - with an average score of **{np.around(df_big_easy_clean['reviewRating'].mean(),1)} stars**.
 ''')
 
 left, right = st.beta_columns(2)
@@ -271,27 +271,83 @@ st.write('''
 fig3, axs3 = plt.subplots(nrows=1, ncols=3, figsize=(12, 6),
                           constrained_layout=True)
 
+# Set up word cloud
+wc = WordCloud(prefer_horizontal=1,
+               max_words=100,
+               background_color='ghostwhite',
+               min_word_length=2,
+               relative_scaling=0.8,
+               width=300,
+               height=200)
+
+# Set up count vectorizer
+C = CountVectorizer(ngram_range=(2, 3),
+                    max_df=0.4,
+                    min_df=5,
+                    binary=True,
+                    stop_words='english')
+
+# Strip 'big easy' and 'canary wharf'
+df_big_easy_clean['review_tfidf'] = [re.sub(r'(big easy|canary wharf)', '', s) for s in
+                                     df_big_easy_clean['review_clean'].values]
+
+# Get scores
+res = C.fit_transform(df_big_easy_clean['review_tfidf'])
+
+# Set up dataframe
+df_res = pd.DataFrame(data=res.todense(),
+                      columns=C.get_feature_names())
+
+# Get counts by each term
+df_term_counts = pd.DataFrame(data=df_res.T.sum(axis=1).reset_index().values,
+                              columns=['term', 'count'])
+
+# For each bigram, figure out if there's a reverse of it with a higher count
+term_list = list(df_term_counts['term'].values)
+terms_to_reverse = []
+
+for term in term_list:
+    term_rev = ' '.join(reversed(term.split()))
+
+    # Check if reversed term has higher count
+    if term_rev in term_list:
+
+        # Don't bother checking the reverse term once we've checked the first term
+        term_list.remove(term_rev)
+
+        term_count = df_term_counts.query(f'term=="{term}"')['count'].values[0]
+        term_rev_count = df_term_counts.query(f'term=="{term_rev}"')['count'].values[0]
+
+        if term_rev_count >= term_count:
+            terms_to_reverse.append(term)
+
+df_res_rev = df_res.copy(deep=True)
+
+# Then, for bigrams to reverse, add the count to it's reverse
+for term in terms_to_reverse:
+    term_rev = ' '.join(reversed(term.split()))
+
+    # Add less frequent term column into frequent one
+    df_res_rev[term_rev] += df_res_rev[term]
+
+# Then, drop columns we don't need
+df_res_rev = df_res_rev.drop(terms_to_reverse, axis=1)
+
+# Now apply tfidf transformer
+T = TfidfTransformer()
+
+# Get scores
+tfidf = T.fit_transform(df_res_rev)
+
+# Set up dataframe
+df_res = pd.DataFrame(data=tfidf.todense(),
+                      columns=df_res_rev.columns)
+
 # Bucket reviews into 1-2 stars, 3-4 stars, and 5 stars
 review_buckets = {0: [1, 2],
                   1: [3, 4],
                   2: [5, 5]}
 
-# Set up vectorizer
-T = TfidfVectorizer(ngram_range=(2, 2),
-                    max_df=0.5,
-                    min_df=5,
-                    stop_words='english')
-
-# Strip 'big easy' and 'canary wharf'
-df_big_easy_clean['review_tfidf'] = [re.sub(r'(big easy|canary wharf)', '', s) for s in
-                                     df_big_easy_clean['review_clean']]
-
-# Get scores
-res = T.fit_transform(df_big_easy_clean['review_tfidf'])
-
-# Set up dataframe
-df_res = pd.DataFrame(data=res.todense(),
-                      columns=T.get_feature_names())
 
 for i in range(3):
 
@@ -300,17 +356,12 @@ for i in range(3):
 
     # Filter for certain reviews
     df_res_filt = df_res[[rev_min <= r <= rev_max for r in df_big_easy_clean['reviewRating']]].copy(deep=True)
-    print(df_res_filt.shape)
 
     # Turn into plottable format
-    df_plot = df_res_filt.T.apply(lambda row: np.mean(row), axis=1).sort_values(ascending=False).reset_index()[:30]
+    df_plot = df_res_filt.T.sum(axis=1).sort_values(ascending=False)[:30]
 
-    # Plot
-    sns.barplot(data=df_plot,
-                # When you use reset_index() on a series, you end up with index and 0 as column names
-                x=0,
-                y='index',
-                ax=axs3[i])
+    wc.generate_from_frequencies(df_plot)
+    axs3[i].imshow(wc, interpolation='bilinear')
 
     if rev_min == rev_max:
         title_stars = f'{rev_min} star'
@@ -318,7 +369,11 @@ for i in range(3):
         title_stars = f'{rev_min}-{rev_max} star'
 
     axs3[i].set_title(f'Most common terms in {title_stars} reviews')
+    axs3[i].axis('off')
 
+fig3.tight_layout()
+
+c1, c2, c3 = st.beta_columns(3)
 st.pyplot(fig3)
 
 
@@ -332,9 +387,10 @@ st.write('''
     This section allows you to really zoom in on a specific word or phrase, and see what your customers think.
 ''')
 
+terms = ['birthday', 'service', 'food cold', 'lobster roll', 'mac and cheese', 'service']
 
 term = st.selectbox('Pick a word/term from below and the charts below will change!',
-                    options=['birthday', 'lobster roll', 'mac and cheese', 'service'])
+                    options=sorted(terms))
 
 
 # Filter dataframe for reviews containing that specific term
@@ -385,53 +441,63 @@ right2.pyplot(fig5)
 
 
 # Get relevant parts of reviews
-def review_extract_term(text, match_str):
-    matches = re.split(match_str,
-                       re.sub(r'mac &', 'mac', text.lower()))
+def review_extract_term(text, term):
+
+    # For terms with >1 word, allow for gaps between word with spaces/characters, up to 15 characters/spaces total
+    term_split = term.split()
+    if len(term_split) == 2:
+        # Example - 'food cold', we'd want to match: 'food was cold', 'food arrived very cold'
+        match_str = '(' + term_split[0] + r'[\s,]([a-z\s\,]{1,15})?' + term_split[1] + ')'
+
+        # Because we have 2 capture groups, the overall term, and the optional characters/spaces in the middle,
+        # any splits will return 2 terms: the split itself, and the optional capture group in the middle.
+        #
+        # For example, a match of 'food cold' on 'my food was very cold today' returns this list:
+        # ['my ', 'food was very cold', 'was very ', ' today'].
+        #
+        # We want to ignore the 2nd capture group, or every 3rd item in the list.
+        matches_prelim = re.split(match_str,
+                                  text.lower())
+
+        # Ditch every 3rd term as per above logic
+        matches = [m for (i, m) in enumerate(matches_prelim) if (i+1) % 3 != 0]
+    else:
+        match_str = term  # No further processing needed
+        matches = re.split(match_str,
+                           text.lower())
 
     # See how many matches there are
     n_matches = len(matches) - 1
 
-    # Get empty list for results
+    # Loop through each match, remembering that every 2nd item is the match string
+    # So every 3rd item we want to put a separator to keep multiple matches apart (if there are more than 3)
     res = []
+    for i in range(n_matches+1):
+        pos = i+1
+        n_tokens = 30
+        # Every first word in group of 3
+        if (pos-1) % 3 == 0:
+            res.append(' '.join(matches[i].split()[-n_tokens:]) + ' ')
+        # Every second word is the match term
+        elif (pos+1) % 3 == 0:
+            res.append(matches[i])
+        # Third word
+        else:
+            trailing_str_trim = ' '.join(matches[i].split()[:n_tokens]) + (' *** ' if n_matches > 3 else '')
 
-    # Loop through each match
-    for i in range(n_matches):
-        # Get the bit of text before and after the match
-        leading_str = matches[i].strip()
-        trailing_str = matches[i + 1].strip()
+            # Check if we need a space or not
+            trailing_space = '' if (len(trailing_str_trim) == 0
+                                    or re.search(r'[^A-z]', trailing_str_trim[0]) is not None
+                                    or re.search(r's[^A-z]', trailing_str_trim[:3]) is not None) else ' '  # Plurals
 
-        # Get words
-        leading_words = leading_str.split()
-        trailing_words = trailing_str.split()
+            res.append(trailing_space + trailing_str_trim)
 
-        # Then, get n words either side of each split
-        n_words = 30
-        leading_str_trim = ('...' if len(leading_words) > n_words else '') + ' '.join(leading_words[-n_words:])
-        leading_str_trim = leading_str_trim[2:] if leading_str_trim[:2] == 's ' else leading_str_trim
-        trailing_str_trim = ' '.join(trailing_words[:n_words]) + ('...' if len(trailing_words) > n_words else '')
-
-        # Check if we need spaces before joining text together
-        leading_space = '' if (len(leading_str_trim) == 0 or re.search(r'[A-z]',
-                                                                       leading_str_trim[-1]) is None) else ' '
-
-        trailing_space = '' if (len(trailing_str_trim) == 0
-                                or re.search(r'[^A-z]', trailing_str_trim[0]) is not None
-                                or re.search(r's[^A-z]', trailing_str_trim[:3]) is not None) else ' '
-
-        res.append(leading_str_trim + leading_space + match_str + trailing_space + trailing_str_trim)
-
-    if len(res) == 1:
-        return res[0]
-    else:
-        return '\n***\n'.join(res)
+    return ''.join(res).strip()
 
 
 # Write to session state
 df_big_easy_filt['Review extract'] = df_big_easy_filt.apply(lambda row: review_extract_term(row['reviewBody'],
                                                                                             term), axis=1)
-
-# st.write(df_big_easy_filt)
 
 
 def show(df):
