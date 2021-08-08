@@ -407,12 +407,15 @@ terms = ['birthday',
          'mac cheese',
          'atmosphere',
          'live music',
+         'chicken',
+         'drinks',
          'rib',
-         'pulled pork',
+         'pork',
          'shrimp',
+         'seafood',
+         'dessert',
          'bbq',
          'staff',
-         'service charge',
          'wait minutes']
 
 

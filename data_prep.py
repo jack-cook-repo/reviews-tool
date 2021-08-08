@@ -134,7 +134,7 @@ def clean_text(text):
     tokens_alpha = [re.sub('[^A-z]', '', t) for t in tokens_no_sw]
 
     # Then take lemmas, excluding cases where it makes the word look a bit weird
-    lemmas = [wnl.lemmatize(t, pos='v') if t not in ('bit', 'amazing') else t for t in tokens_alpha]
+    lemmas = [wnl.lemmatize(t, pos='v') if t not in ('bit', 'amazing', 'pulled') else t for t in tokens_alpha]
 
     # Rejoin as single string
     text_clean = ' '.join(lemmas)  # lemmas
