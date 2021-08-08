@@ -580,6 +580,19 @@ def show(df):
     st.write('')
     st.table(df.iloc[start:end])
 
+    # Put buttons at bottom of table
+    col1b, col2b, col3b, _ = st.beta_columns([0.1, 0.17, 0.1, 0.63])
+    if st.session_state.page < n_pages-1:
+        col3b.button('>', on_click=next_page, key='col3b')
+    else:
+        col3b.write('')  # this makes the empty column show up on mobile
+
+    if st.session_state.page > 0:
+        col1b.button('<', on_click=prev_page, key='col1b')
+    else:
+        col1b.write('')  # this makes the empty column show up on mobile
+    col2b.write(f'Page {1 + st.session_state.page} of {n_pages}')
+
 
 df_review_display = df_big_easy_filt[['reviewRating', 'Review extract', 'date_clean']]
 df_review_display = df_review_display.rename(columns={'date_clean': 'Review date'})
@@ -622,19 +635,23 @@ button_show = st.session_state.show_button
 
 def update_button(bt_show):
     st.session_state.show_button = bt_show
+    st.session_state.page = 0
 
 
 with st.beta_expander('Click to expand'):
     st.write(' ')
-    bt1, bt2, bt3, _ = st.beta_columns((2, 2, 2, 3))
-    bt1.button(label='Sort by highest score',
+    bt1, bt2, bt3, _ = st.beta_columns((2, 2, 2, 5))
+    bt1.button(label='Highest scores',
                on_click=update_button,
+               key='bt1',
                args=('score_desc', ))
-    bt2.button(label='Sort by lowest score',
+    bt2.button(label='Lowest scores',
                on_click=update_button,
+               key='bt2',
                args=('score_asc', ))
-    bt3.button(label='Sort by date',
+    bt3.button(label='Newest',
                on_click=update_button,
+               key='bt3',
                args=('date',))
 
     if button_show == 'date':
@@ -647,3 +664,4 @@ with st.beta_expander('Click to expand'):
             df_review_display[['Review date', 'Rating', 'Review extract']].sort_values(by=['Rating', 'Review date'],
                                                                                        ascending=asc).reset_index(
                 drop=True))
+
