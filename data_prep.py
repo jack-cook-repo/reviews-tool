@@ -109,7 +109,10 @@ def clean_text(text):
     text_w_not_words = text_w_not_words.replace('will not', 'wont')
 
     # Apply extra replacement steps
-    text_further_rep = re.sub(r'(server|waiter|waitress)', 'staff', text_w_not_words)
+    text_further_rep = re.sub(r'ambience', 'atmosphere', text_w_not_words)
+    text_further_rep = re.sub(r'barbeque', 'bbq', text_further_rep)
+    text_further_rep = re.sub(r'b.b.q', 'bbq', text_further_rep)
+    text_further_rep = re.sub(r'(server|waiter|waitress)', 'staff', text_further_rep)
     text_further_rep = text_further_rep.replace('mins', 'minutes')
     text_further_rep = text_further_rep.replace('hrs', 'hours')
     text_further_rep = re.sub('£[0-9.]+', 'money', text_further_rep)

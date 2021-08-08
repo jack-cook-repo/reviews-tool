@@ -211,13 +211,19 @@ st.write('''
 # -----Overview------ #
 # ################### #
 
+period_lower = st.session_state.period_filt.lower()
+if period_lower == 'all time':
+    leading_text = 'Over all time'
+else:
+    leading_text = f'Over the {period_lower}'
+
 st.write(f'''
     ## 🌏 Overview
     
     This section covers some high level metrics on reviews - average scores by month, and number of reviews by star rating.
     (For average scores by month, we exclude months with 5 reviews or fewer).
     
-    Over the time period selected:
+    {leading_text}:
     - there were **{df_big_easy_clean.shape[0]} reviews**
     - with an average score of **{np.nan_to_num(np.around(df_big_easy_clean['reviewRating'].mean(),1))} stars**.
 ''')
@@ -389,7 +395,7 @@ st.pyplot(fig3)
 # ################### #
 st.write('''
     ---
-    ## 🔎 Deep dive into specific topics
+    ## 🔎 Deep dive
     
     This section allows you to really zoom in on a specific word or phrase, and see what your customers think.
 ''')
@@ -401,6 +407,10 @@ terms = ['birthday',
          'mac cheese',
          'atmosphere',
          'live music',
+         'rib',
+         'pulled pork',
+         'shrimp',
+         'bbq',
          'staff',
          'service charge',
          'wait minutes']
@@ -411,11 +421,18 @@ term = st.selectbox('Pick a word/term from below and the charts below will chang
 
 
 # Filter dataframe for reviews containing that specific term
-term_filt = term.replace(' and ', ' ')  # Hacky
-df_big_easy_filt = df_big_easy_clean[df_big_easy_clean['review_clean'].str.contains(term_filt)].copy(deep=True)
+term_split = term.split()
+
+# For terms with >1 word, allow for gaps between word with spaces/characters, up to 15 characters/spaces total
+if len(term_split) == 2:
+    match_str = r'(\b' + term_split[0] + r'[\s,]([a-z\s\,]{1,15})?' + term_split[1] + r')s?\b'
+else:
+    match_str = r'(\b' + term + r')s?\b'  # No further processing needed
+
+df_big_easy_filt = df_big_easy_clean[df_big_easy_clean['review_clean'].str.contains(match_str)].copy(deep=True)
 
 st.write(f'''
-    Over the time period selected, there were **{df_big_easy_filt.shape[0]} reviews** that mentioned "{term}", 
+    {leading_text}, there were **{df_big_easy_filt.shape[0]} reviews** that mentioned "{term}", 
     with an average score of **{np.nan_to_num(np.around(df_big_easy_filt['reviewRating'].mean(),1))} stars**
 ''')
 
@@ -456,17 +473,16 @@ right2.pyplot(fig5)
 def review_extract_term(text, term):
 
     # Apply extra replacement steps
-    text_further_rep = re.sub(r'(server|waiter|waitress)', 'staff', text.lower())
+    text_further_rep = re.sub(r'ambience', 'atmosphere', text.lower())
+    text_further_rep = re.sub(r'barbeque', 'bbq', text_further_rep)
+    text_further_rep = re.sub(r'b.b.q', 'bbq', text_further_rep)
+    text_further_rep = re.sub(r'(server|waiter|waitress)', 'staff', text_further_rep)
     text_further_rep = text_further_rep.replace('mins', 'minutes')
     text_further_rep = text_further_rep.replace('hrs', 'hours')
     text_further_rep = re.sub('£[0-9.]+', 'money', text_further_rep)
 
     # For terms with >1 word, allow for gaps between word with spaces/characters, up to 15 characters/spaces total
-    term_split = term.split()
     if len(term_split) == 2:
-        # Example - 'food cold', we'd want to match: 'food was cold', 'food arrived very cold'
-        match_str = '(' + term_split[0] + r'[\s,]([a-z\s\,]{1,15})?' + term_split[1] + ')'
-
         # Because we have 2 capture groups, the overall term, and the optional characters/spaces in the middle,
         # any splits will return 2 terms: the split itself, and the optional capture group in the middle.
         #
@@ -480,7 +496,6 @@ def review_extract_term(text, term):
         # Ditch every 3rd term as per above logic
         matches = [m for (i, m) in enumerate(matches_prelim) if (i+1) % 3 != 0]
     else:
-        match_str = r'(' + term + ')'  # No further processing needed
         matches = re.split(match_str,
                            text_further_rep.lower())
 
@@ -573,6 +588,24 @@ def get_stars(n):
 
 df_review_display['Rating'] = [f'{get_stars(stars)}' for stars in df_review_display['reviewRating']]
 df_review_display['Review date'] = [str(d)[:10] for d in df_review_display['Review date']]
+
+# st.write('')
+# # Set up word cloud
+# w2 = WordCloud(prefer_horizontal=1,
+#                max_words=100,
+#                background_color='ghostwhite',
+#                min_word_length=2,
+#                relative_scaling=0.8,
+#                collocation_threshold=10,
+#                width=900,
+#                height=300)
+# fig6, ax6 = plt.subplots()
+# w2.generate(re.sub('(' + '|'.join(term.split()) + ')',
+#                    '',
+#                    ' '.join(df_big_easy_filt['review_clean'].values)))
+# ax6.imshow(w2, interpolation='bilinear')
+# ax6.axis('off')
+# st.pyplot(fig6)
 
 st.write('')
 st.write(f'#### See what people have to say about "{term}"')
