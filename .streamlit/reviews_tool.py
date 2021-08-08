@@ -408,7 +408,7 @@ terms = ['birthday',
          'atmosphere',
          'live music',
          'chicken',
-         'drinks',
+         'drink',
          'rib',
          'pork',
          'shrimp',
@@ -613,7 +613,37 @@ df_review_display['Review date'] = [str(d)[:10] for d in df_review_display['Revi
 st.write('')
 st.write(f'#### See what people have to say about "{term}"')
 st.write('')
+
+if 'show_button' not in st.session_state:
+    st.session_state.show_button = 'date'
+
+button_show = st.session_state.show_button
+
+
+def update_button(bt_show):
+    st.session_state.show_button = bt_show
+
+
 with st.beta_expander('Click to expand'):
     st.write(' ')
-    show(df_review_display[['Review date', 'Rating', 'Review extract']].sort_values(by='Review date',
-                                                                                    ascending=False).reset_index(drop=True))
+    bt1, bt2, bt3, _ = st.beta_columns((2, 2, 2, 3))
+    bt1.button(label='Sort by highest score',
+               on_click=update_button,
+               args=('score_desc', ))
+    bt2.button(label='Sort by lowest score',
+               on_click=update_button,
+               args=('score_asc', ))
+    bt3.button(label='Sort by date',
+               on_click=update_button,
+               args=('date',))
+
+    if button_show == 'date':
+        show(df_review_display[['Review date', 'Rating', 'Review extract']].sort_values(by=['Review date'],
+                                                                                        ascending=False).reset_index(
+            drop=True))
+    else:
+        asc = True if button_show == 'score_asc' else False
+        show(
+            df_review_display[['Review date', 'Rating', 'Review extract']].sort_values(by=['Rating', 'Review date'],
+                                                                                       ascending=asc).reset_index(
+                drop=True))
