@@ -13,7 +13,7 @@ openpyxl
 sklearn
 gensim
 tqdm
-streamlit
+streamlit==0.85.1
 watchdog
 google
 google-cloud-bigquery

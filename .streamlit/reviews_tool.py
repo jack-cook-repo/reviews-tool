@@ -1,5 +1,5 @@
 import re
-import copy
+import warnings
 import pandas as pd
 import numpy as np
 import streamlit as st
@@ -10,6 +10,9 @@ from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from wordcloud import WordCloud
 from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
+
+# Ignore warnings when we filter by a regex string
+warnings.filterwarnings("ignore", 'This pattern has match groups')
 
 # Set up initial config
 st.set_page_config(layout='wide')
@@ -635,7 +638,6 @@ button_show = st.session_state.show_button
 
 def update_button(bt_show):
     st.session_state.show_button = bt_show
-    st.session_state.page = 0
 
 
 with st.beta_expander('Click to expand'):
