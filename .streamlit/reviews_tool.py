@@ -284,8 +284,8 @@ st.write('')
 
 def get_word_clouds(df):
 
-    fig3a, axs3a = plt.subplots(figsize=(12, 6))
-    fig3b, axs3b = plt.subplots(figsize=(12, 6))
+    fig3a, axs3a = plt.subplots(figsize=(6, 4))
+    fig3b, axs3b = plt.subplots(figsize=(6, 4))
 
     # Set up word cloud
     wc = WordCloud(prefer_horizontal=1,
@@ -438,7 +438,7 @@ term_split = term.split()
 
 # For terms with >1 word, allow for gaps between word with spaces/characters, up to 15 characters/spaces total
 if len(term_split) == 2:
-    match_str = r'(\b' + term_split[0] + r'[\s,]([a-z\s\,]{1,15})?' + term_split[1] + r')s?\b'
+    match_str = r'(\b' + term_split[0] + r'(ed|ing)?[\s,]([0-9a-z\s\,-]{1,15})?' + term_split[1] + r')s?\b'
 else:
     match_str = r'(\b' + term + r')s?\b'  # No further processing needed
 
@@ -496,18 +496,27 @@ def review_extract_term(text, term):
 
     # For terms with >1 word, allow for gaps between word with spaces/characters, up to 15 characters/spaces total
     if len(term_split) == 2:
-        # Because we have 2 capture groups, the overall term, and the optional characters/spaces in the middle,
-        # any splits will return 2 terms: the split itself, and the optional capture group in the middle.
+        # Because we have 3 capture groups, the overall term, the optional (ed|ing), and the optional characters/spaces
+        # in the middle, any splits will return 3 terms:
+        # the split itself, optional (ed|ing), and the optional capture group in the middle.
         #
         # For example, a match of 'food cold' on 'my food was very cold today' returns this list:
-        # ['my ', 'food was very cold', 'was very ', ' today'].
+        # ['my ', 'food was very cold', None, 'was very ', ' today'].
         #
-        # We want to ignore the 2nd capture group, or every 3rd item in the list.
+        # We want to ignore the 2nd & 3rd capture group, or every 3rd & 4th item in the list.
         matches_prelim = re.split(match_str,
                                   text_further_rep.lower())
 
-        # Ditch every 3rd term as per above logic
-        matches = [m for (i, m) in enumerate(matches_prelim) if (i+1) % 3 != 0]
+        # Ditch every 3rd & 4th term as per above logic
+        matches = []
+        pos = 0
+        for (i, m) in enumerate(matches_prelim):
+            if pos in (0, 1, 4):
+                matches.append(m)
+                if pos == 4:
+                    pos = 0
+            pos += 1
+        # matches = [m for (i, m) in enumerate(matches_prelim) if (i+1) % 3 != 0]
     else:
         matches = re.split(match_str,
                            text_further_rep.lower())
