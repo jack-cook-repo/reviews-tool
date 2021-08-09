@@ -67,7 +67,7 @@ def pct_review_words_in_eng_corpus(text, n_tokens: int):
     :return: A percentage of how many of the tokens appear in the nltk English corpus
     '''
 
-    #assert n_tokens >= 1 and isinstance(n_tokens, int), 'n_tokens must be an int > 0'
+    # assert n_tokens >= 1 and isinstance(n_tokens, int), 'n_tokens must be an int > 0'
 
     # Get list of English words
     eng_words = words.words('en')

@@ -284,7 +284,8 @@ st.write('')
 
 def get_word_clouds(df):
 
-    fig3, axs3 = plt.subplots(nrows=1, ncols=3, figsize=(12, 6))
+    fig3a, axs3a = plt.subplots(figsize=(12, 6))
+    fig3b, axs3b = plt.subplots(figsize=(12, 6))
 
     # Set up word cloud
     wc = WordCloud(prefer_horizontal=1,
@@ -293,7 +294,7 @@ def get_word_clouds(df):
                    min_word_length=2,
                    relative_scaling=0.8,
                    width=300,
-                   height=300)
+                   height=200)
 
     # Set up count vectorizer
     C = CountVectorizer(ngram_range=(2, 3),
@@ -348,21 +349,24 @@ def get_word_clouds(df):
     df_res_rev = df_res_rev.drop(terms_to_reverse, axis=1)
 
     # Now apply tfidf transformer
-    T = TfidfTransformer()
+    # T = TfidfTransformer()
 
     # Get scores
-    tfidf = T.fit_transform(df_res_rev)
+    # tfidf = T.fit_transform(df_res_rev)
 
     # Set up dataframe
-    df_res = pd.DataFrame(data=tfidf.todense(),
-                          columns=df_res_rev.columns)
+    # df_res = pd.DataFrame(data=tfidf.todense(),
+    #                       columns=df_res_rev.columns)
+    df_res = df_res_rev.copy(deep=True)
 
     # Bucket reviews into 1-2 stars, 3-4 stars, and 5 stars
     review_buckets = {0: [1, 2],
-                      1: [3, 4],
-                      2: [5, 5]}
+                      # 1: [3, 4],
+                      1: [4, 5]}
 
-    for i in range(3):
+    for i in range(2):
+
+        ax_wc = [axs3a, axs3b][i]
 
         # Get review bucket
         rev_min, rev_max = review_buckets[i]
@@ -374,23 +378,26 @@ def get_word_clouds(df):
         df_plot = df_res_filt.T.sum(axis=1).sort_values(ascending=False)[:30]
 
         wc.generate_from_frequencies(df_plot)
-        axs3[i].imshow(wc, interpolation='bilinear')
+        ax_wc.imshow(wc, interpolation='bilinear')
 
         if rev_min == rev_max:
             title_stars = f'{rev_min} star'
         else:
             title_stars = f'{rev_min}-{rev_max} star'
 
-        axs3[i].set_title(f'Most common terms in {title_stars} reviews')
-        axs3[i].axis('off')
+        ax_wc.set_title(f'Most common terms in {title_stars} reviews')
+        ax_wc.axis('off')
 
-    return fig3
+    return fig3a, fig3b
 
 
-fig3 = get_word_clouds(df_big_easy_clean)
-fig3.tight_layout()
+fig3a, fig3b = get_word_clouds(df_big_easy_clean)
+fig3a.tight_layout()
+fig3b.tight_layout()
 
-st.pyplot(fig3)
+left_b, right_b = st.beta_columns(2)
+left_b.pyplot(fig3a)
+right_b.pyplot(fig3b)
 
 
 # ################### #
