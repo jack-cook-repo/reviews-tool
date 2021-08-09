@@ -13,6 +13,7 @@ from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
 
 # Ignore warnings when we filter by a regex string
 warnings.filterwarnings("ignore", 'This pattern has match groups')
+warnings.filterwarnings('ignore', 'The DataFrame has column names of mixed type')
 
 # Set up initial config
 st.set_page_config(layout='wide')
@@ -297,17 +298,14 @@ def get_word_clouds(df):
                    height=200)
 
     # Set up count vectorizer
-    C = CountVectorizer(ngram_range=(2, 3),
+    C = CountVectorizer(ngram_range=(1, 3),
                         max_df=0.4,
                         min_df=5,
                         binary=True,
                         stop_words='english')
 
-    # Strip 'big easy' and 'canary wharf'
-    df['review_tfidf'] = [re.sub(r'(big easy|canary wharf)', '', s) for s in df['review_clean'].values]
-
     # Get scores
-    res = C.fit_transform(df['review_tfidf'])
+    res = C.fit_transform(df['review_clean'])
 
     # Set up dataframe
     df_res = pd.DataFrame(data=res.todense(),
@@ -322,6 +320,8 @@ def get_word_clouds(df):
     terms_to_reverse = []
 
     for term in term_list:
+        if len(term.split()) == 1:
+            continue
         term_rev = ' '.join(reversed(term.split()))
 
         # Check if reversed term has higher count
@@ -348,21 +348,34 @@ def get_word_clouds(df):
     # Then, drop columns we don't need
     df_res_rev = df_res_rev.drop(terms_to_reverse, axis=1)
 
-    # Now apply tfidf transformer
-    # T = TfidfTransformer()
-
-    # Get scores
-    # tfidf = T.fit_transform(df_res_rev)
-
-    # Set up dataframe
-    # df_res = pd.DataFrame(data=tfidf.todense(),
-    #                       columns=df_res_rev.columns)
     df_res = df_res_rev.copy(deep=True)
 
     # Bucket reviews into 1-2 stars, 3-4 stars, and 5 stars
     review_buckets = {0: [1, 2],
                       # 1: [3, 4],
                       1: [4, 5]}
+
+    # Get terms that crop up in reviews, and add ratings
+    df_rating_by_term = pd.concat((df_res, df['reviewRating'].astype(int)), axis=1)
+
+    # Group by rating, and sum up number of reviews where that term is present
+    df_rating_by_term_agg = df_rating_by_term.groupby('reviewRating').sum()
+
+    # Transpose, so that number of ratings are columns and rows are terms
+    df_rating_counts = df_rating_by_term_agg.T
+
+    # Then bucket by 1-2 and 4-5 star
+    df_rating_counts['total_reviews'] = df_rating_counts.sum(axis=1)
+    df_rating_counts['bad_reviews'] = df_rating_counts[1] + df_rating_counts[2]
+    df_rating_counts['good_reviews'] = df_rating_counts[4] + df_rating_counts[5]
+
+    # Then get percentages
+    df_rating_counts['pct_reviews_bad'] = 100*(df_rating_counts['bad_reviews'] / [1 if n == 0 else n for n in df_rating_counts['total_reviews']])
+    df_rating_counts['pct_reviews_good'] = 100*(df_rating_counts['good_reviews'] / [1 if n == 0 else n for n in df_rating_counts['total_reviews']])
+    df_rating_counts['pct_reviews_bad'] = df_rating_counts['pct_reviews_bad'].astype(int)
+    df_rating_counts['pct_reviews_good'] = df_rating_counts['pct_reviews_good'].astype(int)
+
+    # st.write(df_rating_counts.query('total_reviews >= 10').sort_values(by='total_reviews', ascending=False))
 
     for i in range(2):
 
@@ -413,6 +426,7 @@ st.write('''
 terms = ['birthday',
          'service',
          'food cold',
+         'lobster',
          'lobster roll',
          'mac cheese',
          'atmosphere',
