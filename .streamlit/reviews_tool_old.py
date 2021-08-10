@@ -283,10 +283,19 @@ st.write('''
 st.write('')
 
 
-def get_review_topics(df):
+def get_word_clouds(df):
 
     fig3a, axs3a = plt.subplots(figsize=(6, 4))
     fig3b, axs3b = plt.subplots(figsize=(6, 4))
+
+    # Set up word cloud
+    wc = WordCloud(prefer_horizontal=1,
+                   max_words=100,
+                   background_color='ghostwhite',
+                   min_word_length=2,
+                   relative_scaling=0.8,
+                   width=300,
+                   height=200)
 
     # Set up count vectorizer
     C = CountVectorizer(ngram_range=(1, 3),
@@ -337,50 +346,23 @@ def get_review_topics(df):
         df_res_rev[term_rev] += df_res_rev[term]
 
     # Then, drop columns we don't need
-    df_res = df_res_rev.drop(terms_to_reverse, axis=1).copy(deep=True)
+    df_res_rev = df_res_rev.drop(terms_to_reverse, axis=1)
 
-    figh, axh = plt.subplots()
+    df_res = df_res_rev.copy(deep=True)
 
-    # Compute the correlation matrix
-    corr = df_res.corr()
-
-    # Unpivot
-    df_corr = corr.unstack().reset_index()
-
-    # Rename columns, and filter out cases when terms are identical
-    df_corr = df_corr.rename(columns={'level_0': 'term_1',
-                                      'level_1': 'term_2',
-                                      0: 'correl'}).query('term_1 != term_2').reset_index(drop=True).copy(deep=True)
-
-    # Filter out cases when a term in one column is present in another
-    df_corr = df_corr[[(t1 not in t2) and (t2 not in t1) for (t1, t2) in zip(df_corr['term_1'],
-                                                                             df_corr['term_2'])]].copy(deep=True)
-
-    # Get absolute correlations and rank
-    df_corr['abs_correl'] = [abs(n) for n in df_corr['correl']]
-    df_corr['rank'] = df_corr.groupby('term_1')['abs_correl'].rank(method='dense',
-                                                                   ascending=False)
-    st.write(df_corr.query('rank <= 5').drop('abs_correl', axis=1).sort_values(by=['term_1', 'rank']))
+    # Bucket reviews into 1-2 stars & 4-5 stars
+    review_buckets = {0: [1, 2],
+                      1: [4, 5]}
 
     # Group columns by themes
-    time_cols = ['time', 'minutes', 'wait', 'later', 'slow', 'hour', 'ages']
+    time_cols = ['time', 'minutes', 'wait minutes', 'wait', 'later', 'slow', 'hour']
     df_res['Topic: time'] = df_res[[col for col in df_res.columns if col in time_cols]].max(axis=1).values
 
     staff_cols = ['staff', 'service']
     df_res['Topic: staff'] = df_res[[col for col in df_res.columns if col in staff_cols]].max(axis=1).values
 
-    food_compliment_cols = ['good food', 'great food', 'food amazing']
-    df_res['Topic: food compliment'] = df_res[[col for col in df_res.columns if col in food_compliment_cols]].max(axis=1).values
-
-    lobster_cols = ['lobsters', 'lobster']
-    df_res['Topic: lobster'] = df_res[[col for col in df_res.columns if col in lobster_cols]].max(axis=1).values
-
-    atmosphere_cols = ['atmosphere', 'music']
-    df_res['Topic: music & atmosphere'] = df_res[[col for col in df_res.columns if col in atmosphere_cols]].max(axis=1).values
-
-    price_cols = ['price', 'cost', 'value', 'money', 'expensive']
-    df_res['Topic: money'] = df_res[[col for col in df_res.columns if col in price_cols]].max(
-        axis=1).values
+    food_compliment_cols = ['good food', 'great food', '']
+    # df_res['Topic: staff'] = df_res[[col for col in df_res.columns if col in staff_cols]].max(axis=1).values
 
     # Get terms that crop up in reviews, and add ratings
     df_rating_by_term = pd.concat((df_res, df['reviewRating'].astype(int)), axis=1)
@@ -410,10 +392,40 @@ def get_review_topics(df):
 
     st.write(df_rating_counts.query('total_reviews >= 10').sort_values(by='bad_reviews', ascending=False))
 
-    return df_rating_counts
+    for i in range(2):
+
+        ax_wc = [axs3a, axs3b][i]
+
+        # Get review bucket
+        rev_min, rev_max = review_buckets[i]
+
+        # Filter for certain reviews
+        df_res_filt = df_res[[rev_min <= r <= rev_max for r in df['reviewRating']]].copy(deep=True)
+
+        # Turn into plottable format
+        df_plot = df_res_filt.T.sum(axis=1).sort_values(ascending=False)[:30]
+
+        wc.generate_from_frequencies(df_plot)
+        ax_wc.imshow(wc, interpolation='bilinear')
+
+        if rev_min == rev_max:
+            title_stars = f'{rev_min} star'
+        else:
+            title_stars = f'{rev_min}-{rev_max} star'
+
+        ax_wc.set_title(f'Most common terms in {title_stars} reviews')
+        ax_wc.axis('off')
+
+    return fig3a, fig3b
 
 
-df_rating_counts = get_review_topics(df_big_easy_clean)
+fig3a, fig3b = get_word_clouds(df_big_easy_clean)
+fig3a.tight_layout()
+fig3b.tight_layout()
+
+left_b, right_b = st.beta_columns(2)
+left_b.pyplot(fig3a)
+right_b.pyplot(fig3b)
 
 
 # ################### #
