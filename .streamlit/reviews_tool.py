@@ -270,23 +270,25 @@ right.pyplot(fig2)
 
 
 # ################### #
-# ---Detail plots---- #
+# ------Topics------- #
 # ################### #
 st.write('''
     ---
     
     ## 🗣 Things customers are talking about
-
-    Taking a deeper look into your reviews and seeing what topics come up.
 ''')
 
 st.write('')
 
+# Create themed columns for review topics
+dict_themed_topics = {'time & waiting': ['time', 'minutes', 'wait', 'later', 'slow', 'hour', 'ages'],
+                      'staff & service': ['staff', 'service'],
+                      'lobster(s)': ['lobsters', 'lobster'],
+                      'atmosphere & music': ['atmosphere', 'music'],
+                      'price & money': ['price', 'cost', 'value', 'money', 'expensive', 'overprice']}
+
 
 def get_review_topics(df):
-
-    fig3a, axs3a = plt.subplots(figsize=(6, 4))
-    fig3b, axs3b = plt.subplots(figsize=(6, 4))
 
     # Set up count vectorizer
     C = CountVectorizer(ngram_range=(1, 3),
@@ -339,10 +341,14 @@ def get_review_topics(df):
     # Then, drop columns we don't need
     df_res = df_res_rev.drop(terms_to_reverse, axis=1).copy(deep=True)
 
-    figh, axh = plt.subplots()
+    # ***** Correlations ***** #
+    # Get correlations for terms with > 10 reviews
+    df_correl_counts = pd.DataFrame(data=df_res.T.sum(axis=1).reset_index().values,
+                                    columns=['term', 'count'])
+    terms_to_keep = df_correl_counts.query('count >= 10')['term'].values
 
     # Compute the correlation matrix
-    corr = df_res.corr()
+    corr = df_res[terms_to_keep].corr()
 
     # Unpivot
     df_corr = corr.unstack().reset_index()
@@ -360,27 +366,12 @@ def get_review_topics(df):
     df_corr['abs_correl'] = [abs(n) for n in df_corr['correl']]
     df_corr['rank'] = df_corr.groupby('term_1')['abs_correl'].rank(method='dense',
                                                                    ascending=False)
-    st.write(df_corr.query('rank <= 5').drop('abs_correl', axis=1).sort_values(by=['term_1', 'rank']))
+    # st.write(df_corr.query('rank <= 5').drop('abs_correl', axis=1).sort_values(by=['term_1', 'rank']))
 
+    # ***** Themes ***** #
     # Group columns by themes
-    time_cols = ['time', 'minutes', 'wait', 'later', 'slow', 'hour', 'ages']
-    df_res['Topic: time'] = df_res[[col for col in df_res.columns if col in time_cols]].max(axis=1).values
-
-    staff_cols = ['staff', 'service']
-    df_res['Topic: staff'] = df_res[[col for col in df_res.columns if col in staff_cols]].max(axis=1).values
-
-    food_compliment_cols = ['good food', 'great food', 'food amazing']
-    df_res['Topic: food compliment'] = df_res[[col for col in df_res.columns if col in food_compliment_cols]].max(axis=1).values
-
-    lobster_cols = ['lobsters', 'lobster']
-    df_res['Topic: lobster'] = df_res[[col for col in df_res.columns if col in lobster_cols]].max(axis=1).values
-
-    atmosphere_cols = ['atmosphere', 'music']
-    df_res['Topic: music & atmosphere'] = df_res[[col for col in df_res.columns if col in atmosphere_cols]].max(axis=1).values
-
-    price_cols = ['price', 'cost', 'value', 'money', 'expensive']
-    df_res['Topic: money'] = df_res[[col for col in df_res.columns if col in price_cols]].max(
-        axis=1).values
+    for theme in dict_themed_topics.keys():
+        df_res[theme] = df_res[[col for col in df_res.columns if col in dict_themed_topics[theme]]].max(axis=1).values
 
     # Get terms that crop up in reviews, and add ratings
     df_rating_by_term = pd.concat((df_res, df['reviewRating'].astype(int)), axis=1)
@@ -404,20 +395,85 @@ def get_review_topics(df):
 
     # Add total number of ratings
     df['reviewRating'] = df['reviewRating'].astype(int)
-    df_total_reviews_by_star = df.groupby('reviewRating').agg(num_reviews=('date_clean', 'count')).T.iloc[0]
-    df_rating_counts['bad_reviews_all'] = df_total_reviews_by_star[1] + df_total_reviews_by_star[2]
-    df_rating_counts['good_reviews_all'] = df_total_reviews_by_star[4] + df_total_reviews_by_star[5]
+    series_total_reviews_by_star = df.groupby('reviewRating').agg(num_reviews=('date_clean', 'count')).T.iloc[0]
+    df_rating_counts['bad_reviews_all'] = series_total_reviews_by_star[1] + series_total_reviews_by_star[2]
+    df_rating_counts['good_reviews_all'] = series_total_reviews_by_star[4] + series_total_reviews_by_star[5]
+    df_rating_counts['total_reviews_all'] = series_total_reviews_by_star.sum()
 
-    st.write(df_rating_counts.query('total_reviews >= 10').sort_values(by='bad_reviews', ascending=False))
+    st.write(df_rating_counts.query('total_reviews >= 10').sort_index())
 
-    return df_rating_counts
+    return df_rating_counts.query('total_reviews >= 10').sort_index()
 
 
 df_rating_counts = get_review_topics(df_big_easy_clean)
+good_reviews_all = df_rating_counts.reset_index(drop=True).loc[0, 'good_reviews_all']
+bad_reviews_all = df_rating_counts.reset_index(drop=True).loc[0, 'bad_reviews_all']
+total_reviews_all = df_rating_counts.reset_index(drop=True).loc[0, 'total_reviews_all']
 
+
+def write_review_topics(df, topic, topic_type):
+
+    assert topic_type in ('good', 'bad', 'other'), 'topic_type must be one of: good, bad, other'
+
+    good_reviews_w_topic = df.loc[topic, 'good_reviews']
+    good_reviews_all = df.loc[topic, 'good_reviews_all']
+    pct_good_reviews_contained_topic = int(100*good_reviews_w_topic / good_reviews_all)
+    pct_reviews_good = df.loc[topic, 'pct_reviews_good']
+
+    bad_reviews_w_topic = df.loc[topic, 'bad_reviews']
+    bad_reviews_all = df.loc[topic, 'bad_reviews_all']
+    pct_bad_reviews_contained_topic = int(100*bad_reviews_w_topic / bad_reviews_all)
+    pct_reviews_bad = df.loc[topic, 'pct_reviews_bad']
+
+    all_reviews_w_topic = df.loc[topic, 'total_reviews']
+
+    if topic_type == 'good':
+        return f'- **{pct_good_reviews_contained_topic}%** of good reviews mentioned {topic}'
+    elif topic_type == 'bad':
+        return f'- **{pct_bad_reviews_contained_topic}%** of bad reviews mentioned {topic}'
+    else:
+        if pct_reviews_good >= pct_reviews_bad:
+            return f'- **{pct_reviews_good}%** of the **{all_reviews_w_topic}** reviews that mentioned {topic} were good reviews'
+        else:
+            return f'- **{pct_reviews_bad}%** of the **{all_reviews_w_topic}** reviews that mentioned {topic} were good reviews'
+
+
+# Write section intro
+st.write(f'''
+    In this section, a 4-5 star review is considered "good", and a 1-2 star review is considered "bad". 3 star reviews
+    are considered to be neutral and are ignored.
+    
+    ### {leading_text}:
+    
+    - **{good_reviews_all}** reviews were "good" reviews (**{int(100*good_reviews_all / total_reviews_all)}%** of all reviews)
+    - **{bad_reviews_all}** reviews were "bad" reviews (**{int(100*bad_reviews_all / total_reviews_all)}%** of all reviews)
+''')
+
+# For each topic, write summaries
+left_good_topics, right_bad_topics = st.beta_columns(2)
+
+# Good topics
+good_topics = ['staff & service', 'atmosphere & music',
+               'lobster(s)', 'bbq', 'bottomless']
+good_topic_summaries = []
+for gt in good_topics:
+    good_topic_summaries.append(f'{write_review_topics(df_rating_counts, gt, "good")}')
+
+left_good_topics.write('## 👍 Topics in good reviews')
+left_good_topics.write('\n'.join(good_topic_summaries))
+
+# Bad topics
+bad_topics = ['staff & service', 'time & waiting',
+              'price & money', 'cold']
+bad_topics_summaries = []
+for bt in bad_topics:
+    bad_topics_summaries.append(f'{write_review_topics(df_rating_counts, bt, "bad")}')
+
+right_bad_topics.write('## 👎 Topics in bad reviews')
+right_bad_topics.write('\n'.join(bad_topics_summaries))
 
 # ################### #
-# ------Topics------- #
+# -----Deep dive----- #
 # ################### #
 st.write('''
     ---
@@ -693,14 +749,14 @@ with st.beta_expander('Click to expand'):
                key='bt3',
                args=('date',))
 
-    if button_show == 'date':
-        show(df_review_display[['Review date', 'Rating', 'Review extract']].sort_values(by=['Review date'],
-                                                                                        ascending=False).reset_index(
-            drop=True))
-    else:
-        asc = True if button_show == 'score_asc' else False
-        show(
-            df_review_display[['Review date', 'Rating', 'Review extract']].sort_values(by=['Rating', 'Review date'],
-                                                                                       ascending=asc).reset_index(
-                drop=True))
+    # if button_show == 'date':
+    #     show(df_review_display[['Review date', 'Rating', 'Review extract']].sort_values(by=['Review date'],
+    #                                                                                     ascending=False).reset_index(
+    #         drop=True))
+    # else:
+    #     asc = True if button_show == 'score_asc' else False
+    #     show(
+    #         df_review_display[['Review date', 'Rating', 'Review extract']].sort_values(by=['Rating', 'Review date'],
+    #                                                                                    ascending=asc).reset_index(
+    #             drop=True))
 
