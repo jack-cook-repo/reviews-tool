@@ -1,4 +1,5 @@
 import re
+# import mpld3
 import warnings
 import pandas as pd
 import numpy as np
@@ -118,7 +119,8 @@ def add_data_labels_and_bar_widths(axis, label_fmt, new_width=1):
         p.set_x(p.get_x() + diff * .5)
 
 
-def plot_review_score_by_month(color_scheme, df, date_col, reviews_col, ylim=(0, 5.3)):
+def plot_review_score_by_month(color_scheme, df, date_col, reviews_col,
+                               n_reviews_col, ylim=(0, 5.3)):
     '''
     Given a Matplotlib axis, and a colour scheme, input dataframe (with date and reviews columns),
     plus optional y limits, plots a reviews by month barplot onto the axis
@@ -153,8 +155,13 @@ def plot_review_score_by_month(color_scheme, df, date_col, reviews_col, ylim=(0,
     ax.set_ylabel('')
     ax.set_title('Average review score (stars) by month')
 
-    # Finally, add data labels and set bar widths
+    # Add data labels and set bar widths
     add_data_labels_and_bar_widths(ax, label_fmt='{:.1f}')
+
+    # Then add tooltips
+    # labels = [f'{n} reviews' for n in df[n_reviews_col]]
+    # tooltip = mpld3.plugins.PointLabelTooltip(ax, labels=labels)
+    # mpld3.plugins.connect(fig, tooltip)
 
     return fig
 
@@ -229,7 +236,7 @@ st.write(f'''
     
     {leading_text}:
     - there were **{df_big_easy_clean.shape[0]} reviews**
-    - with an average score of **{np.nan_to_num(np.around(df_big_easy_clean['reviewRating'].mean(),1))} stars**.
+    - with an average score of **{np.nan_to_num(np.around(df_big_easy_clean['reviewRating'].mean(),1))} ⭐️**
 ''')
 
 left, right = st.beta_columns(2)
@@ -247,12 +254,15 @@ df_monthly_output['mean'] = np.where(df_monthly_output['count'] > 5,
 df_monthly_output['mean'] = df_monthly_output['mean'].map(lambda n: np.around(n, 1))
 
 # Plot barplot onto axis
-fig1= plot_review_score_by_month(color_scheme='Blues',
-                                 df=df_monthly_output, date_col='date_clean',
-                                 reviews_col='mean')
+fig1 = plot_review_score_by_month(color_scheme='Blues',
+                                  df=df_monthly_output,
+                                  date_col='date_clean',
+                                  n_reviews_col='count',
+                                  reviews_col='mean')
 
 # Write to streamlit
 left.pyplot(fig1)
+# mpld3.show(fig=fig1)
 
 
 # 2: Review score breakdown
@@ -400,12 +410,13 @@ def get_review_topics(df):
     df_rating_counts['good_reviews_all'] = series_total_reviews_by_star[4] + series_total_reviews_by_star[5]
     df_rating_counts['total_reviews_all'] = series_total_reviews_by_star.sum()
 
-    st.write(df_rating_counts.query('total_reviews >= 10').sort_index())
+    # For debugging
+    # st.write(df_rating_counts.query('total_reviews >= 10').sort_index())
 
-    return df_rating_counts.query('total_reviews >= 10').sort_index()
+    return df_rating_counts.query('total_reviews >= 10').sort_index(), df_rating_by_term
 
 
-df_rating_counts = get_review_topics(df_big_easy_clean)
+df_rating_counts, df_rating_by_term = get_review_topics(df_big_easy_clean)
 good_reviews_all = df_rating_counts.reset_index(drop=True).loc[0, 'good_reviews_all']
 bad_reviews_all = df_rating_counts.reset_index(drop=True).loc[0, 'bad_reviews_all']
 total_reviews_all = df_rating_counts.reset_index(drop=True).loc[0, 'total_reviews_all']
@@ -415,27 +426,31 @@ def write_review_topics(df, topic, topic_type):
 
     assert topic_type in ('good', 'bad', 'other'), 'topic_type must be one of: good, bad, other'
 
+    topic_cased = (topic[0].upper() + topic[1:]).replace('Mac cheese', 'Mac & cheese')
+
     good_reviews_w_topic = df.loc[topic, 'good_reviews']
     good_reviews_all = df.loc[topic, 'good_reviews_all']
     pct_good_reviews_contained_topic = int(100*good_reviews_w_topic / good_reviews_all)
-    pct_reviews_good = df.loc[topic, 'pct_reviews_good']
 
     bad_reviews_w_topic = df.loc[topic, 'bad_reviews']
     bad_reviews_all = df.loc[topic, 'bad_reviews_all']
     pct_bad_reviews_contained_topic = int(100*bad_reviews_w_topic / bad_reviews_all)
-    pct_reviews_bad = df.loc[topic, 'pct_reviews_bad']
-
-    all_reviews_w_topic = df.loc[topic, 'total_reviews']
 
     if topic_type == 'good':
-        return f'- **{pct_good_reviews_contained_topic}%** of good reviews mentioned {topic}'
+        return [pct_good_reviews_contained_topic,
+                f'- **{pct_good_reviews_contained_topic}%** mentioned {topic}']
     elif topic_type == 'bad':
-        return f'- **{pct_bad_reviews_contained_topic}%** of bad reviews mentioned {topic}'
+        return [pct_bad_reviews_contained_topic,
+                f'- **{pct_bad_reviews_contained_topic}%** mentioned {topic}']
     else:
-        if pct_reviews_good >= pct_reviews_bad:
-            return f'- **{pct_reviews_good}%** of the **{all_reviews_w_topic}** reviews that mentioned {topic} were good reviews'
-        else:
-            return f'- **{pct_reviews_bad}%** of the **{all_reviews_w_topic}** reviews that mentioned {topic} were bad reviews'
+        # Get the number of reviews for that topic, by star rating
+        reviews_by_star = df.loc[topic, 1:5]
+
+        # Take the weighted average to get the review score to 1 decimal place
+        weighted_score = np.around(np.sum(reviews_by_star.values * reviews_by_star.index) / np.sum(reviews_by_star.values), 1)
+
+        return [weighted_score,
+                f'- **{topic_cased}** ({np.sum(reviews_by_star.values)} reviews) had an average score of {weighted_score} ⭐️']
 
 
 # Write section intro
@@ -451,45 +466,62 @@ st.write(f'''
 
 # For each topic, write summaries
 left_good_topics, right_bad_topics = st.beta_columns(2)
-left_interesting_topics, right_food_topics = st.beta_columns(2)
 
 # Good topics
 good_topics = ['staff & service', 'atmosphere & music',
                'lobster(s)', 'bbq', 'bottomless']
 good_topic_summaries = []
 for gt in good_topics:
-    good_topic_summaries.append(f'{write_review_topics(df_rating_counts, gt, "good")}')
+    good_topic_summaries.append(write_review_topics(df_rating_counts, gt, "good"))
+df_gt = pd.DataFrame(good_topic_summaries, columns=['score', 'text'])
+df_gt = df_gt.sort_values(by='score', ascending=False)
 
-left_good_topics.write('## 👍 Topics in good reviews')
-left_good_topics.write('\n'.join(good_topic_summaries))
+left_good_topics.write('## 👍 Of all good reviews...')
+left_good_topics.write('\n'.join(df_gt['text'].values))
 
 # Bad topics
 bad_topics = ['staff & service', 'time & waiting',
               'price & money', 'cold']
 bad_topics_summaries = []
 for bt in bad_topics:
-    bad_topics_summaries.append(f'{write_review_topics(df_rating_counts, bt, "bad")}')
+    bad_topics_summaries.append(write_review_topics(df_rating_counts, bt, "bad"))
+df_bt = pd.DataFrame(bad_topics_summaries, columns=['score', 'text'])
+df_bt = df_bt.sort_values(by='score', ascending=False)
 
-right_bad_topics.write('## 👎 Topics in bad reviews')
-right_bad_topics.write('\n'.join(bad_topics_summaries))
+right_bad_topics.write('## 👎 Of all bad reviews...')
+right_bad_topics.write('\n'.join(df_bt['text'].values))
+
+
+st.write('''
+    We can also take a bit of a closer look at some other interesting topics that come up in reviews,
+    and how different menu items are rated in reviews that mention them.
+''')
+# Set up sub columns
+left_interesting_topics, right_food_topics = st.beta_columns(2)
+
+# Food insights
+food_topics = ['lobster(s)', 'shrimp', 'rib', 'bbq', 'mac cheese', 'chicken',
+               'chip', 'lobster roll', 'seafood', 'steak', 'wing']
+food_topics_summaries = []
+for ft in food_topics:
+    food_topics_summaries.append(write_review_topics(df_rating_counts, ft, "other"))
+df_ft = pd.DataFrame(food_topics_summaries, columns=['score', 'text'])
+df_ft = df_ft.sort_values(by='score', ascending=False)
+
+left_interesting_topics.write('## 🦞 Food reviews that mentioned...')
+left_interesting_topics.write('\n'.join(df_ft['text'].values))
 
 # Then bring up some interesting insights
-interesting_topics = ['birthday', 'lunch', 'brunch', 'deal', 'portion', 'bar', 'book', 'clean']
+interesting_topics = ['birthday', 'lunch', 'brunch', 'deal', 'portion', 'bar',
+                      'book', 'clean', 'cocktails']
 interesting_topics_summaries = []
 for it in interesting_topics:
-    interesting_topics_summaries.append(f'{write_review_topics(df_rating_counts, it, "other")}')
+    interesting_topics_summaries.append(write_review_topics(df_rating_counts, it, "other"))
+df_it = pd.DataFrame(interesting_topics_summaries, columns=['score', 'text'])
+df_it = df_it.sort_values(by='score', ascending=False)
 
-left_interesting_topics.write('## 🤔 Topics with interesting trends')
-left_interesting_topics.write('\n'.join(interesting_topics_summaries))
-
-# Finally, food insights
-food_topics = ['lobster(s)', 'shrimp', 'rib', 'bbq', 'mac cheese', 'chicken', 'pork', ]
-interesting_topics_summaries = []
-for it in interesting_topics:
-    interesting_topics_summaries.append(f'{write_review_topics(df_rating_counts, it, "other")}')
-
-left_interesting_topics.write('## 🤔 Topics with interesting trends')
-left_interesting_topics.write('\n'.join(interesting_topics_summaries))
+right_food_topics.write('## 🤔 Other reviews that mentioned...')
+right_food_topics.write('\n'.join(df_it['text'].values))
 
 
 
@@ -503,27 +535,7 @@ st.write('''
     This section allows you to really zoom in on a specific word or phrase, and see what your customers think.
 ''')
 
-terms = ['birthday',
-         'service',
-         'food cold',
-         'lobster',
-         'lobster roll',
-         'mac cheese',
-         'atmosphere',
-         'live music',
-         'chicken',
-         'drink',
-         'rib',
-         'order',
-         'pork',
-         'bring',
-         'shrimp',
-         'seafood',
-         'dessert',
-         'bbq',
-         'staff',
-         'wait minutes']
-
+terms = list(set(good_topics + bad_topics + food_topics + interesting_topics))
 
 term = st.selectbox('Pick a word/term from below and the charts below will change!',
                     options=sorted(list(set(terms))))
@@ -540,11 +552,12 @@ else:
     if term == 'bring':
         match_str = r'(\bbring|\bbrought)s?\b'
 
-df_big_easy_filt = df_big_easy_clean[df_big_easy_clean['review_clean'].str.contains(match_str)].copy(deep=True)
+# df_big_easy_filt = df_big_easy_clean[df_big_easy_clean['review_clean'].str.contains(match_str)].copy(deep=True)
+df_big_easy_filt = df_big_easy_clean[df_rating_by_term[term] == 1].copy(deep=True)
 
 st.write(f'''
-    {leading_text}, there were **{df_big_easy_filt.shape[0]} reviews** that mentioned "{term}", 
-    with an average score of **{np.nan_to_num(np.around(df_big_easy_filt['reviewRating'].mean(),1))} stars**
+    {leading_text}, there were **{df_big_easy_filt.shape[0]} reviews** that mentioned **"{term}"**, 
+    with an average score of **{np.nan_to_num(np.around(df_big_easy_filt['reviewRating'].mean(),1))} ⭐️**
 ''')
 
 # Set up partition
@@ -558,8 +571,8 @@ df_monthly_filt = df_big_easy_filt.set_index('date_clean').resample('M')['review
 df_monthly_filt['mean'] = df_monthly_filt['mean'].map(lambda n: np.around(n, 1))
 
 # Plot barplot onto axis
-fig4 = plot_review_score_by_month(color_scheme='Blues',
-                                  df=df_monthly_filt, date_col='date_clean',
+fig4 = plot_review_score_by_month(color_scheme='Blues', df=df_monthly_filt,
+                                  date_col='date_clean', n_reviews_col='count',
                                   reviews_col='mean', ylim=(0, 5.5))
 
 # Write to streamlit
@@ -578,6 +591,8 @@ fig5 = plot_reviews_by_star_rating(color_scheme='RdYlGn', df=df_reviews_filled_f
 
 # Write to streamlit
 right2.pyplot(fig5)
+
+st.write('Placeholder - number of reviews mentioning this term over time')
 
 
 # Get relevant parts of reviews
