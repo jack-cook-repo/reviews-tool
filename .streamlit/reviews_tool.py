@@ -435,7 +435,7 @@ def write_review_topics(df, topic, topic_type):
         if pct_reviews_good >= pct_reviews_bad:
             return f'- **{pct_reviews_good}%** of the **{all_reviews_w_topic}** reviews that mentioned {topic} were good reviews'
         else:
-            return f'- **{pct_reviews_bad}%** of the **{all_reviews_w_topic}** reviews that mentioned {topic} were good reviews'
+            return f'- **{pct_reviews_bad}%** of the **{all_reviews_w_topic}** reviews that mentioned {topic} were bad reviews'
 
 
 # Write section intro
@@ -451,6 +451,7 @@ st.write(f'''
 
 # For each topic, write summaries
 left_good_topics, right_bad_topics = st.beta_columns(2)
+left_interesting_topics, right_food_topics = st.beta_columns(2)
 
 # Good topics
 good_topics = ['staff & service', 'atmosphere & music',
@@ -471,6 +472,26 @@ for bt in bad_topics:
 
 right_bad_topics.write('## 👎 Topics in bad reviews')
 right_bad_topics.write('\n'.join(bad_topics_summaries))
+
+# Then bring up some interesting insights
+interesting_topics = ['birthday', 'lunch', 'brunch', 'deal', 'portion', 'bar', 'book', 'clean']
+interesting_topics_summaries = []
+for it in interesting_topics:
+    interesting_topics_summaries.append(f'{write_review_topics(df_rating_counts, it, "other")}')
+
+left_interesting_topics.write('## 🤔 Topics with interesting trends')
+left_interesting_topics.write('\n'.join(interesting_topics_summaries))
+
+# Finally, food insights
+food_topics = ['lobster(s)', 'shrimp', 'rib', 'bbq', 'mac cheese', 'chicken', 'pork', ]
+interesting_topics_summaries = []
+for it in interesting_topics:
+    interesting_topics_summaries.append(f'{write_review_topics(df_rating_counts, it, "other")}')
+
+left_interesting_topics.write('## 🤔 Topics with interesting trends')
+left_interesting_topics.write('\n'.join(interesting_topics_summaries))
+
+
 
 # ################### #
 # -----Deep dive----- #

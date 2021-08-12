@@ -110,11 +110,11 @@ def clean_text(text):
 
     # Apply extra replacement steps
     text_further_rep = re.sub(r'ambience', 'atmosphere', text_w_not_words)
-    text_further_rep = re.sub(r'barbe(c|q)ue', 'bbq', text_further_rep)
-    text_further_rep = re.sub(r'b.b.q', 'bbq', text_further_rep)
+    text_further_rep = re.sub(r'(barbe(c|q)ue | b.b.q | b(ar)?(\s)?b(\s)?q)', 'bbq', text_further_rep)
     text_further_rep = re.sub(r'(server|waiter|waitress)', 'staff', text_further_rep)
     text_further_rep = text_further_rep.replace('mins', 'minutes')
     text_further_rep = text_further_rep.replace('hrs', 'hours')
+    text_further_rep = re.sub(r'sea(\s)food', 'seafood', text_further_rep)
     text_further_rep = re.sub('£[0-9.]+', 'money', text_further_rep)
     text_further_rep = re.sub(r'(big easy|canary wharf)', '', text_further_rep)
 
