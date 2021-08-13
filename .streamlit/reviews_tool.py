@@ -294,7 +294,8 @@ dict_themed_topics = {'time & waiting': ['time', 'minutes', 'wait', 'later', 'sl
                       'staff & service': ['staff', 'service'],
                       'lobster(s)': ['lobsters', 'lobster'],
                       'atmosphere & music': ['atmosphere', 'music'],
-                      'price & money': ['price', 'cost', 'value', 'money', 'expensive', 'overprice']}
+                      'price & money': ['price', 'cost', 'value', 'money', 'expensive', 'overprice'],
+                      'great / good food': ['good food', 'great food', 'amazing food', 'delicious']}
 
 
 def get_review_topics(df):
@@ -468,14 +469,14 @@ left_good_topics, right_bad_topics = st.beta_columns(2)
 
 # Good topics
 good_topics = ['staff & service', 'atmosphere & music',
-               'lobster(s)', 'bbq', 'bottomless']
+               'lobster(s)', 'drink', 'great / good food']
 good_topic_summaries = []
 for gt in good_topics:
     good_topic_summaries.append(write_review_topics(df_rating_counts, gt, "good"))
 df_gt = pd.DataFrame(good_topic_summaries, columns=['score', 'text'])
 df_gt = df_gt.sort_values(by='score', ascending=False)
 
-left_good_topics.write('## 👍 Of all good reviews...')
+left_good_topics.write('### 👍 Of all good reviews...')
 left_good_topics.write('\n'.join(df_gt['text'].values))
 
 # Bad topics
@@ -487,7 +488,7 @@ for bt in bad_topics:
 df_bt = pd.DataFrame(bad_topics_summaries, columns=['score', 'text'])
 df_bt = df_bt.sort_values(by='score', ascending=False)
 
-right_bad_topics.write('## 👎 Of all bad reviews...')
+right_bad_topics.write('### 👎 Of all bad reviews...')
 right_bad_topics.write('\n'.join(df_bt['text'].values))
 
 
@@ -507,7 +508,7 @@ for ft in food_topics:
 df_ft = pd.DataFrame(food_topics_summaries, columns=['score', 'text'])
 df_ft = df_ft.sort_values(by='score', ascending=False)
 
-left_interesting_topics.write('## 🦞 Food reviews that mentioned...')
+left_interesting_topics.write('### 🦞 Food reviews that mentioned...')
 left_interesting_topics.write('\n'.join(df_ft['text'].values))
 
 # Then bring up some interesting insights
@@ -519,7 +520,7 @@ for it in interesting_topics:
 df_it = pd.DataFrame(interesting_topics_summaries, columns=['score', 'text'])
 df_it = df_it.sort_values(by='score', ascending=False)
 
-right_food_topics.write('## 🤔 Other reviews that mentioned...')
+right_food_topics.write('### 🤔 Other reviews that mentioned...')
 right_food_topics.write('\n'.join(df_it['text'].values))
 
 
@@ -534,11 +535,26 @@ st.write('''
     This section allows you to really zoom in on a specific word or phrase, and see what your customers think.
 ''')
 
+# Set up session state for later on
+if 'show_button' not in st.session_state:
+    st.session_state.show_button = 'date'
+
+button_show = st.session_state.show_button
+
+
+def update_button(bt_show):
+    st.session_state.show_button = bt_show
+    st.session_state.page = 0
+
+
+# Then pick term
 terms = list(set(good_topics + bad_topics + food_topics + interesting_topics))
 
 term = st.selectbox('Pick a word/term from below and the charts below will change!',
-                    options=sorted(list(set(terms))))
-
+                    options=sorted(list(set(terms))),
+                    on_change=update_button,
+                    key='select_term',
+                    args=('date',))
 
 # Filter dataframe for reviews containing that specific term / topic
 df_big_easy_filt = df_big_easy_clean[df_rating_by_term[term] == 1].copy(deep=True)
@@ -721,16 +737,6 @@ df_review_display = df_review_display[['rating', 'review_date', 'review_highligh
 st.write('')
 st.write(f'#### See what people have to say about "{term}"')
 st.write('')
-
-if 'show_button' not in st.session_state:
-    st.session_state.show_button = 'date'
-
-button_show = st.session_state.show_button
-
-
-def update_button(bt_show):
-    st.session_state.show_button = bt_show
-    st.session_state.page = 0
 
 
 with st.beta_expander('Click to expand'):
