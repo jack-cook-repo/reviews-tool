@@ -119,7 +119,7 @@ def add_data_labels_and_bar_widths(axis, label_fmt, new_width=1):
 
 
 def plot_reviews_by_month(color_scheme, df, date_col, scores_or_counts,
-                          num_col):
+                          num_col, figsize=(6,4)):
     '''
     Given a Matplotlib axis, and a colour scheme, input dataframe (with a date column and a review scores or
     count column), plus optional y limits, plots the numerical by month barplot onto the axis
@@ -127,7 +127,7 @@ def plot_reviews_by_month(color_scheme, df, date_col, scores_or_counts,
 
     assert scores_or_counts in ('scores', 'counts')
 
-    fig, ax = plt.subplots(figsize=(6, 4), constrained_layout=True)
+    fig, ax = plt.subplots(figsize=figsize, constrained_layout=True)
 
     # Set up colour palette and rankings to select colours from each palette, and ylim
     if scores_or_counts == 'scores':
@@ -608,8 +608,9 @@ figx = plot_reviews_by_month(color_scheme='Blues',
                              df=df_monthly_filt,
                              date_col='date_clean',
                              num_col='count',
-                             scores_or_counts='counts')
-st.pyplot(figx)
+                             scores_or_counts='counts',
+                             figsize=(6, 2))
+# st.pyplot(figx)
 
 
 # Get dictionary of terms we replaced in our clean text (e.g. barbeque --> bbq)
