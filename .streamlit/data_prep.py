@@ -1,8 +1,10 @@
+import os
 import numpy as np
 import pandas as pd
 import logging
 import re
 
+from utils import get_dict_terms_to_replace
 from datetime import datetime, timedelta
 from nltk.corpus import words, stopwords
 from nltk.stem.wordnet import WordNetLemmatizer
@@ -109,14 +111,10 @@ def clean_text(text):
     text_w_not_words = text_w_not_words.replace('will not', 'wont')
 
     # Apply extra replacement steps
-    text_further_rep = re.sub(r'ambience', 'atmosphere', text_w_not_words)
-    text_further_rep = re.sub(r'(barbe(c|q)ue|b.b.q|b(ar)?(\s)?b(\s)?q)', 'bbq', text_further_rep)
-    text_further_rep = re.sub(r'(server|waiter|waitress)', 'staff', text_further_rep)
-    text_further_rep = text_further_rep.replace('mins', 'minutes')
-    text_further_rep = text_further_rep.replace('hrs', 'hours')
-    text_further_rep = re.sub(r'sea(\s)food', 'seafood', text_further_rep)
-    text_further_rep = re.sub('£[0-9.]+', 'money', text_further_rep)
-    text_further_rep = re.sub(r'(big easy|canary wharf)', '', text_further_rep)
+    text_further_rep = re.sub(r'(big easy|canary wharf)', '', text_w_not_words)
+    dict_terms_to_replace = get_dict_terms_to_replace()
+    for to_replace_to, to_replace in dict_terms_to_replace.items():
+        text_further_rep = re.sub(to_replace, to_replace_to, text_further_rep)
 
     # Get tokens
     tokens = text_further_rep.split(' ')
@@ -148,7 +146,7 @@ log = logging.getLogger('data_prep')
 
 # Set up stream & file handlers with formatting
 sh = logging.StreamHandler()  # Writes to console
-fh = logging.FileHandler('data/logs/logging.txt', mode='w')  # Writes to file, overwriting
+fh = logging.FileHandler('./data/logs/logging.txt', mode='w')  # Writes to file, overwriting
 formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', '', '%')
 sh.setFormatter(formatter)
 fh.setFormatter(formatter)
@@ -203,7 +201,7 @@ df_big_easy_clean['review_clean'] = df_big_easy_clean.apply(lambda row: clean_te
                                                             axis=1)
 
 # Also apply it by sentence, assuming each sentence is separated by a full stop or punctuation
-list_of_sentence_parts = [re.split(r'\.', re.sub('(!|\?)', '.', rev)) for rev in df_big_easy_clean['reviewBody']]
+list_of_sentence_parts = [re.split(r'..', re.sub('(!|\?)', '.', rev)) for rev in df_big_easy_clean['reviewBody']]
 list_of_sentence_parts_clean = []
 # Loop through each review, which is a list of sentence parts
 for s_parts in list_of_sentence_parts:

@@ -1,5 +1,4 @@
 import re
-# import mpld3
 import warnings
 import pandas as pd
 import numpy as np
@@ -9,8 +8,8 @@ import seaborn as sns
 from matplotlib import pyplot as plt
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
-from wordcloud import WordCloud
-from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
+from utils import get_dict_terms_to_replace
+from sklearn.feature_extraction.text import CountVectorizer
 
 # Ignore warnings when we filter by a regex string
 warnings.filterwarnings("ignore", 'This pattern has match groups')
@@ -438,10 +437,10 @@ def write_review_topics(df, topic, topic_type):
 
     if topic_type == 'good':
         return [pct_good_reviews_contained_topic,
-                f'- **{pct_good_reviews_contained_topic}%** mentioned {topic}']
+                f"- **{pct_good_reviews_contained_topic}%** mentioned '{topic}'"]
     elif topic_type == 'bad':
         return [pct_bad_reviews_contained_topic,
-                f'- **{pct_bad_reviews_contained_topic}%** mentioned {topic}']
+                f"- **{pct_bad_reviews_contained_topic}%** mentioned '{topic}'"]
     else:
         # Get the number of reviews for that topic, by star rating
         reviews_by_star = df.loc[topic, 1:5]
@@ -541,18 +540,7 @@ term = st.selectbox('Pick a word/term from below and the charts below will chang
                     options=sorted(list(set(terms))))
 
 
-# Filter dataframe for reviews containing that specific term
-term_split = term.split()
-
-# For terms with >1 word, allow for gaps between word with spaces/characters, up to 15 characters/spaces total
-if len(term_split) == 2:
-    match_str = r'(\b' + term_split[0] + r'(ed|ing)?[\s,]([0-9a-z\s\,-]{1,15})?' + term_split[1] + r')s?\b'
-else:
-    match_str = r'(\b' + term + r')s?\b'  # No further processing needed
-    if term == 'bring':
-        match_str = r'(\bbring|\bbrought)s?\b'
-
-# df_big_easy_filt = df_big_easy_clean[df_big_easy_clean['review_clean'].str.contains(match_str)].copy(deep=True)
+# Filter dataframe for reviews containing that specific term / topic
 df_big_easy_filt = df_big_easy_clean[df_rating_by_term[term] == 1].copy(deep=True)
 
 st.write(f'''
@@ -595,86 +583,69 @@ right2.pyplot(fig5)
 st.write('Placeholder - number of reviews mentioning this term over time')
 
 
-# Get relevant parts of reviews
-def review_extract_term(text):
+# Get dictionary of terms we replaced in our clean text (e.g. barbeque --> bbq)
+# This will help us in the highlighting text step
+dict_terms_to_replace = get_dict_terms_to_replace()
 
-    # Apply extra replacement steps
-    text_further_rep = re.sub(r'ambience', 'atmosphere', text.lower())
-    text_further_rep = re.sub(r'barbeque', 'bbq', text_further_rep)
-    text_further_rep = re.sub(r'b.b.q', 'bbq', text_further_rep)
-    text_further_rep = re.sub(r'(server|waiter|waitress)', 'staff', text_further_rep)
-    text_further_rep = text_further_rep.replace('mins', 'minutes')
-    text_further_rep = text_further_rep.replace('hrs', 'hours')
-    text_further_rep = re.sub('£[0-9.]+', 'money', text_further_rep)
 
-    # For terms with >1 word, allow for gaps between word with spaces/characters, up to 15 characters/spaces total
-    if len(term_split) == 2:
-        # Because we have 3 capture groups, the overall term, the optional (ed|ing), and the optional characters/spaces
-        # in the middle, any splits will return 3 terms:
-        # the split itself, optional (ed|ing), and the optional capture group in the middle.
-        #
-        # For example, a match of 'food cold' on 'my food was very cold today' returns this list:
-        # ['my ', 'food was very cold', None, 'was very ', ' today'].
-        #
-        # We want to ignore the 2nd & 3rd capture group, or every 3rd & 4th item in the list.
-        matches_prelim = re.split(match_str,
-                                  text_further_rep.lower())
+def get_terms_to_highlight():
+    '''
+    Given a term, provides all terms to highlight
+    '''
 
-        # Ditch every 3rd & 4th term as per above logic
-        matches = []
-        pos = 0
-        for (i, m) in enumerate(matches_prelim):
-            if pos in (0, 1, 4):
-                matches.append(m)
-                if pos == 4:
-                    pos = 0
-            pos += 1
-        # matches = [m for (i, m) in enumerate(matches_prelim) if (i+1) % 3 != 0]
+    # If our term covers 1 or more topics, identify all terms to highlight
+    if term in dict_themed_topics.keys():
+        terms_to_highlight = dict_themed_topics[term]
     else:
-        matches = re.split(match_str,
-                           text_further_rep.lower())
+        terms_to_highlight = [term]
 
-    # See how many match string there are
-    n_matches = len(matches)
+    # Workaround for phrases with > 1 word:
+    terms_to_highlight = [t.replace('mac cheese', r'mac(\s)?(and|&|n)(\s)?cheese') for t in terms_to_highlight]
 
-    # See how many triplets there are
-    n_triplets = int((n_matches - 1) / 2)
+    # If in our text cleaning process we substituted words (e.g. waiter/waitress --> staff),
+    # we still want to highlight those terms in the original review text. To do so, we need
+    # to look at what terms we replaced and add those to the list to be highlighted
+    for t in terms_to_highlight:
+        if t in dict_terms_to_replace.keys():
+            # Original regex string
+            match_str = dict_terms_to_replace[t]
 
-    # Loop through each match, remembering that every 2nd item is the match string
-    # So every 3rd item we want to put a separator to keep multiple matches apart (if there are more than 3)
-    res = []
-    slice_start = 0
-    for triplet in range(n_triplets):
-        slice_end = slice_start + 3
-        matches_triplet = matches[slice_start: slice_end]
-        for i in range(3):
-            n_tokens = 30
-            # Every first word in group of 3
-            if i == 0:
-                res.append(' '.join(matches_triplet[i].split()[-n_tokens:]) + ' ')
-            # Every second word is the match term
-            elif i == 1:
-                res.append(matches_triplet[i])
-            # Third word
-            else:
-                trailing_str_trim = ' '.join(matches_triplet[i].split()[:n_tokens]) + (' *** ' if n_matches > 3 else '')
+            # After stripping capture groups and splitting OR logic
+            # other_terms_to_highlight = match_str.strip('(').strip(')').split('|')
+            terms_to_highlight.append(match_str)
 
-                # Check if we need a space or not
-                trailing_space = '' if (len(trailing_str_trim) == 0
-                                        or re.search(r'[^A-z]', trailing_str_trim[0]) is not None
-                                        or re.search(r's[^A-z]', trailing_str_trim[:2]) is not None) else ' '  # Plurals
-
-                res.append(trailing_space + trailing_str_trim)
-        slice_start += 2
-    return ''.join(res).strip()
+    return terms_to_highlight
 
 
-# Get review extract
-if df_big_easy_filt.shape[0] > 0:
-    df_big_easy_filt['Review extract'] = df_big_easy_filt.apply(lambda row: review_extract_term(row['reviewBody']),
-                                                                axis=1)
-else:
-    df_big_easy_filt['Review extract'] = None
+terms_to_highlight = get_terms_to_highlight()
+
+
+def highlight_text(text):
+    '''
+    Given a review body of text, and a term of interest, returns the text with the review
+    term highlighted.
+
+    If the term is a topic covering multiple other terms - highlights all terms within
+    that topic.
+    '''
+
+    # Special case, prevents double highlighting
+    if term == 'lobster(s)':
+        text = text.replace('lobsters', '**lobsters**')
+        text = text.replace('lobster', '**lobster**')
+    else:
+        # Run through passage and highlight text
+        for t in terms_to_highlight:
+            # Replace, ignoring case
+            text = re.sub(r'(?:(?<!\*\*))(' + t + r')', r'**\1**', text, flags=re.IGNORECASE)
+
+    return text
+
+
+# Apply to our dataframe
+vect_highlight_text = np.vectorize(highlight_text)
+df_review_display = df_big_easy_filt.copy(deep=True)
+df_review_display['review_highlighted'] = vect_highlight_text(text=df_review_display['reviewBody'])
 
 
 def show(df):
@@ -710,50 +681,42 @@ def show(df):
     start = rows_per_page * st.session_state.page
     end = start + rows_per_page
     st.write('')
-    st.table(df.iloc[start:end])
+
+    # Write each review up
+    col1b, col2b, col3b = st.beta_columns([1, 2, 5])
+    col1b.write('### Rating')
+    col2b.write('### Date')
+    col3b.write('### Review')
+    st.write('---')
+    for idx, row in df.iloc[start:end].iterrows():
+        col1b, col2b, col3b = st.beta_columns([1, 2, 5])
+        col1b.write(row['rating'])
+        col2b.write(row['review_date'])
+        review_bullets = re.split(r'(?<=\.|\!|\?) ', row['review_highlighted'])
+        col3b.write('- ' + '\n- '.join(review_bullets))
+        st.write('---------')
 
     # Put buttons at bottom of table
-    col1b, col2b, col3b, _ = st.beta_columns([0.1, 0.17, 0.1, 0.63])
+    col1c, col2c, col3c, _ = st.beta_columns([0.1, 0.17, 0.1, 0.63])
     if st.session_state.page < n_pages-1:
-        col3b.button('>', on_click=next_page, key='col3b')
+        col3c.button('>', on_click=next_page, key='col3b')
     else:
-        col3b.write('')  # this makes the empty column show up on mobile
+        col3c.write('')  # this makes the empty column show up on mobile
 
     if st.session_state.page > 0:
-        col1b.button('<', on_click=prev_page, key='col1b')
+        col1c.button('<', on_click=prev_page, key='col1b')
     else:
-        col1b.write('')  # this makes the empty column show up on mobile
-    col2b.write(f'Page {1 + st.session_state.page} of {n_pages}')
-
-
-df_review_display = df_big_easy_filt[['reviewRating', 'Review extract', 'date_clean']]
-df_review_display = df_review_display.rename(columns={'date_clean': 'Review date'})
+        col1c.write('')  # this makes the empty column show up on mobile
+    col2c.write(f'Page {1 + st.session_state.page} of {n_pages}')
 
 
 def get_stars(n):
     return int(n) * '⭐'
 
 
-df_review_display['Rating'] = [f'{get_stars(stars)}' for stars in df_review_display['reviewRating']]
-df_review_display['Review date'] = [str(d)[:10] for d in df_review_display['Review date']]
-
-# st.write('')
-# # Set up word cloud
-# w2 = WordCloud(prefer_horizontal=1,
-#                max_words=100,
-#                background_color='ghostwhite',
-#                min_word_length=2,
-#                relative_scaling=0.8,
-#                collocation_threshold=10,
-#                width=900,
-#                height=300)
-# fig6, ax6 = plt.subplots()
-# w2.generate(re.sub('(' + '|'.join(term.split()) + ')',
-#                    '',
-#                    ' '.join(df_big_easy_filt['review_clean'].values)))
-# ax6.imshow(w2, interpolation='bilinear')
-# ax6.axis('off')
-# st.pyplot(fig6)
+df_review_display['rating'] = [f'{get_stars(stars)}' for stars in df_review_display['reviewRating']]
+df_review_display['review_date'] = [str(d)[:10] for d in df_review_display['date_clean']]
+df_review_display = df_review_display[['rating', 'review_date', 'review_highlighted']].copy(deep=True)
 
 st.write('')
 st.write(f'#### See what people have to say about "{term}"')
@@ -767,6 +730,7 @@ button_show = st.session_state.show_button
 
 def update_button(bt_show):
     st.session_state.show_button = bt_show
+    st.session_state.page = 0
 
 
 with st.beta_expander('Click to expand'):
@@ -785,14 +749,10 @@ with st.beta_expander('Click to expand'):
                key='bt3',
                args=('date',))
 
-    # if button_show == 'date':
-    #     show(df_review_display[['Review date', 'Rating', 'Review extract']].sort_values(by=['Review date'],
-    #                                                                                     ascending=False).reset_index(
-    #         drop=True))
-    # else:
-    #     asc = True if button_show == 'score_asc' else False
-    #     show(
-    #         df_review_display[['Review date', 'Rating', 'Review extract']].sort_values(by=['Rating', 'Review date'],
-    #                                                                                    ascending=asc).reset_index(
-    #             drop=True))
-
+    if button_show == 'date':
+        show(df_review_display.sort_values(by=['review_date'],
+                                           ascending=False).reset_index(drop=True))
+    else:
+        asc = True if button_show == 'score_asc' else False
+        show(df_review_display.sort_values(by=['rating', 'review_date'],
+                                           ascending=asc).reset_index(drop=True))
