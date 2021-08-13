@@ -118,28 +118,37 @@ def add_data_labels_and_bar_widths(axis, label_fmt, new_width=1):
         p.set_x(p.get_x() + diff * .5)
 
 
-def plot_review_score_by_month(color_scheme, df, date_col, reviews_col,
-                               n_reviews_col, ylim=(0, 5.3)):
+def plot_reviews_by_month(color_scheme, df, date_col, scores_or_counts,
+                          num_col):
     '''
-    Given a Matplotlib axis, and a colour scheme, input dataframe (with date and reviews columns),
-    plus optional y limits, plots a reviews by month barplot onto the axis
+    Given a Matplotlib axis, and a colour scheme, input dataframe (with a date column and a review scores or
+    count column), plus optional y limits, plots the numerical by month barplot onto the axis
     '''
+
+    assert scores_or_counts in ('scores', 'counts')
+
     fig, ax = plt.subplots(figsize=(6, 4), constrained_layout=True)
 
-    # Set up colour palette with each colour
-    pal = sns.color_palette(color_scheme, n_colors=51)
-
-    # Pick colours based on review score, rounded to nearest decimal place
-    rank = [0 if rev != rev else int(rev * 10) for rev in df[reviews_col]]
+    # Set up colour palette and rankings to select colours from each palette, and ylim
+    if scores_or_counts == 'scores':
+        pal_colour = [0 if rev != rev else int(rev * 10) for rev in df[num_col]]
+        pal = sns.color_palette(color_scheme, n_colors=51)
+        ylim = (0, 5.3)
+        label_fmt = '{:.1f}'
+    else:
+        max_n_reviews = df[num_col].max()
+        pal_colour = [0 if num != num else num for num in df[num_col]]
+        pal = sns.color_palette(color_scheme, n_colors=max_n_reviews+1)
+        ylim = (0, int(max_n_reviews*1.1))
+        label_fmt = '{:.0f}'
 
     if df.shape[0] > 0:
         # Plot
         sns.barplot(data=df,
                     x=date_col,
-                    y=reviews_col,
+                    y=num_col,
                     ax=ax,
-                    # alpha=0.5,
-                    palette=np.array(pal)[rank])
+                    palette=np.array(pal)[pal_colour])
 
         # Get x labels
         if st.session_state.period_filt in ('Past year', 'All time'):
@@ -152,15 +161,11 @@ def plot_review_score_by_month(color_scheme, df, date_col, reviews_col,
     ax.set_ylim(ylim)
     ax.set_xlabel('')
     ax.set_ylabel('')
-    ax.set_title('Average review score (stars) by month')
+    title_insert = 'Number of reviews' if scores_or_counts == 'counts' else 'Average review score (stars)'
+    ax.set_title(f'{title_insert} by month')
 
     # Add data labels and set bar widths
-    add_data_labels_and_bar_widths(ax, label_fmt='{:.1f}')
-
-    # Then add tooltips
-    # labels = [f'{n} reviews' for n in df[n_reviews_col]]
-    # tooltip = mpld3.plugins.PointLabelTooltip(ax, labels=labels)
-    # mpld3.plugins.connect(fig, tooltip)
+    add_data_labels_and_bar_widths(ax, label_fmt=label_fmt)
 
     return fig
 
@@ -253,11 +258,11 @@ df_monthly_output['mean'] = np.where(df_monthly_output['count'] > 5,
 df_monthly_output['mean'] = df_monthly_output['mean'].map(lambda n: np.around(n, 1))
 
 # Plot barplot onto axis
-fig1 = plot_review_score_by_month(color_scheme='Blues',
-                                  df=df_monthly_output,
-                                  date_col='date_clean',
-                                  n_reviews_col='count',
-                                  reviews_col='mean')
+fig1 = plot_reviews_by_month(color_scheme='Blues',
+                             df=df_monthly_output,
+                             date_col='date_clean',
+                             num_col='mean',
+                             scores_or_counts='scores')
 
 # Write to streamlit
 left.pyplot(fig1)
@@ -575,9 +580,11 @@ df_monthly_filt = df_big_easy_filt.set_index('date_clean').resample('M')['review
 df_monthly_filt['mean'] = df_monthly_filt['mean'].map(lambda n: np.around(n, 1))
 
 # Plot barplot onto axis
-fig4 = plot_review_score_by_month(color_scheme='Blues', df=df_monthly_filt,
-                                  date_col='date_clean', n_reviews_col='count',
-                                  reviews_col='mean', ylim=(0, 5.5))
+fig4 = plot_reviews_by_month(color_scheme='Blues',
+                             df=df_monthly_filt,
+                             date_col='date_clean',
+                             num_col='mean',
+                             scores_or_counts='scores')
 
 # Write to streamlit
 left2.pyplot(fig4)
@@ -596,7 +603,13 @@ fig5 = plot_reviews_by_star_rating(color_scheme='RdYlGn', df=df_reviews_filled_f
 # Write to streamlit
 right2.pyplot(fig5)
 
-st.write('Placeholder - number of reviews mentioning this term over time')
+
+figx = plot_reviews_by_month(color_scheme='Blues',
+                             df=df_monthly_filt,
+                             date_col='date_clean',
+                             num_col='count',
+                             scores_or_counts='counts')
+st.pyplot(figx)
 
 
 # Get dictionary of terms we replaced in our clean text (e.g. barbeque --> bbq)
