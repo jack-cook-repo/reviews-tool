@@ -723,7 +723,7 @@ dict_themed_topics = {'time & waiting': ['time', 'minutes', 'wait', 'later', 'sl
 
 df_rating_counts, df_rating_by_term = get_review_topics(df_big_easy_clean,
                                                         dict_themed_topics,
-                                                        debug_mode=True)
+                                                        debug_mode=False)
 
 good_reviews_all = df_rating_counts.reset_index(drop=True).loc[0, 'good_reviews_all']
 bad_reviews_all = df_rating_counts.reset_index(drop=True).loc[0, 'bad_reviews_all']
