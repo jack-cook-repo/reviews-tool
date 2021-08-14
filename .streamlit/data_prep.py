@@ -22,7 +22,8 @@ def parse_date(string_date):
     :param string_date: Text in the format of '1 day ago', '2 years ago', '3 weeks ago' etc.
     :return: Date parsed from string_date
     '''
-    curr_date = datetime.now()
+    # curr_date = datetime.now()
+    curr_date = datetime(2021, 7, 29)  # Hard coding as we currently aren't refreshing the file
     split_date = string_date.split(' ')
 
     # First split will be numeric quantity

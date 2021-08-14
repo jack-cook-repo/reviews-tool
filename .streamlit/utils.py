@@ -1,65 +1,161 @@
-def get_dict_terms_to_replace():
+import streamlit as st
+import pandas as pd
+
+from text_utils import get_reviews_formatted
+from datetime import datetime
+from dateutil.relativedelta import relativedelta
+
+
+@st.cache
+def get_date():
     '''
-    Utility function, gives you a dict with keys as the terms we want to replace to,
-    and items as terms we want to replace from.
-
-    e.g. We'd want to replace Barbecue, B.B.Q, and barbeque with bbq, so this dict
-    entry would be 'bbq': r'(barbe(c|q)ue|b.b.q|b(ar)?(\s)?b(\s)?q)'.
-
-    The reason for defining this as a function is to make it usable in 2 separate places,
-    1st to clean our text, and 2nd for highlighting text within a review.
+    Returns current date (hard coded at the moment as we aren't refreshing the file)
     '''
-
-    dict_terms_to_replace = {
-        'atmosphere': 'ambience',
-        'bbq': r'(barbe(c|q)ue|b\.b\.q|b(ar)?(\s)?b(\s)?q)',
-        'staff': r'(server|waiter|waitress)',
-        'minutes': 'mins',
-        'hours': 'hrs',
-        'seafood': r'sea(\s)food',
-        'money': r'£[0-9.]+'
-    }
-
-    return dict_terms_to_replace
+    # return datetime.now()
+    return datetime(2021, 7, 29)  # Hard coding as we currently aren't refreshing the file
 
 
-def plot_review_score_by_month(color_scheme, df, date_col, reviews_col,
-                               n_reviews_col, ylim=(0, 5.3)):
+@st.cache
+def get_review_data(date_filt):
     '''
-    Given a Matplotlib axis, and a colour scheme, input dataframe (with date and reviews columns),
-    plus optional y limits, plots a reviews by month barplot onto the axis
+    Filters a dataframe of review data based on a selected filter, and returns the filtered dataframe
     '''
-    fig, ax = plt.subplots(figsize=(6, 4), constrained_layout=True)
+    # Load initial dataframe
+    FILE_PATH = '/Users/jackcook/PycharmProjects/reviews-tool/data/processed_data/df_big_easy_clean.csv'
+    raw_data = pd.read_csv(FILE_PATH)
 
-    # Set up colour palette with each colour
-    pal = sns.color_palette(color_scheme, n_colors=51)
+    current_date = get_date()
 
-    # Pick colours based on review score, rounded to nearest decimal place
-    rank = [0 if rev != rev else int(rev * 10) for rev in df[reviews_col]]
-
-    if df.shape[0] > 0:
-        # Plot
-        sns.barplot(data=df,
-                    x=date_col,
-                    y=reviews_col,
-                    ax=ax,
-                    # alpha=0.5,
-                    palette=np.array(pal)[rank])
-
-        # Get x labels
-        if st.session_state.period_filt in ('Past year', 'All time'):
-            x_labels = [d.strftime('%b\n%y') if i % 2 == 0 else '' for (i, d) in enumerate(df[date_col])]
+    if date_filt == 'All time':
+        return raw_data
+    else:
+        if date_filt == 'Past month':
+            start_date = current_date - relativedelta(months=1)
+        elif date_filt == 'Past year':
+            start_date = current_date - relativedelta(years=1)
+        elif date_filt == 'Past 3 months':
+            start_date = current_date - relativedelta(months=3)
         else:
-            x_labels = [d.strftime('%b\n%y') for d in df[date_col]]
-        ax.set_xticklabels(labels=x_labels, color='black')
+            raise ValueError('Invalid date filter picked')
 
-    # Chart labels, axes, and title
-    ax.set_ylim(ylim)
-    ax.set_xlabel('')
-    ax.set_ylabel('')
-    ax.set_title('Average review score (stars) by month')
+        return raw_data.query(f'date_clean > "{start_date}"')
 
-    # Add data labels and set bar widths
-    add_data_labels_and_bar_widths(ax, label_fmt='{:.1f}')
 
-    return fig
+@st.cache
+def get_num_reviews_by_star_rating(df, star_rating_col, agg_col):
+    '''
+    Given a dataframe, will group by star_rating_col, count the agg_col, and return a dataframe with
+    all possible star ratings (from 1-5) and the number of reviews - including zeroes.
+
+    This ensures that we will always have a row of data for each possible star rating.
+    '''
+    # Group by star rating and count number of reviews
+    df_reviews_agg = df.groupby(star_rating_col).agg(num=(agg_col, 'count')).reset_index()
+
+    # Get continuous set of star ratings
+    df_reviews_filled = pd.DataFrame(columns=[star_rating_col, 'num_reviews'],
+                                     data=list(zip([1, 2, 3, 4, 5], [0, 0, 0, 0, 0])))
+
+    # Join dataframes
+    df_reviews_filled = pd.merge(df_reviews_filled,
+                                 df_reviews_agg,
+                                 how='left',
+                                 on=star_rating_col)
+
+    # Fill missing values with zeroes
+    df_reviews_filled['num_reviews'] = [0 if n != n else n for n in df_reviews_filled['num']]
+
+    return df_reviews_filled[[star_rating_col, 'num_reviews']]
+
+
+def update_button(bt_show):
+    '''
+    Updates session state for keys:
+     - 'show_button': Used for ordering reviews by date, score ascending, and score descending
+     - 'page': Resets it to zero when ordering is changed
+    '''
+    st.session_state.show_button = bt_show
+    st.session_state.page = 0
+
+
+def show(df):
+    '''
+    Given an input dataframe of reviews with at least 1 row and the columns:
+    'rating', 'review_date', and 'review_highlighted', will create a table
+    with custom formatting.
+
+    The columns of this table will be as above, but the advantage of using this method
+    is being able to render text with bold highlighting, bullet point formatting
+    etc. using st.write() instead of st.table().
+
+    This table also features back/forward buttons and page numbers.
+
+    This will write 10 reviews per table page. If the input dataframe has no rows,
+    it will just write a message to that effect and not render anything else.
+    '''
+    n_rows = df.shape[0]
+    if n_rows == 0:
+        st.write('No reviews with this topic in the selected timeframe')
+    else:
+        rows_per_page = 10
+        n_pages = (n_rows // rows_per_page) + (1 if n_rows % rows_per_page != 0 else 0)
+
+        if 'page' not in st.session_state:
+            st.session_state.page = 0
+
+        def next_page():
+            st.session_state.page += 1
+
+        def prev_page():
+            st.session_state.page -= 1
+
+        col1, col2, col3, _ = st.beta_columns([0.1, 0.17, 0.1, 0.63])
+
+        if st.session_state.page < n_pages-1:
+            col3.button('>', on_click=next_page)
+        else:
+            col3.write('')  # this makes the empty column show up on mobile
+
+        if st.session_state.page > 0:
+            col1.button('<', on_click=prev_page)
+        else:
+            col1.write('')  # this makes the empty column show up on mobile
+
+        col2.write(f'Page {1 + st.session_state.page} of {n_pages}')
+        start = rows_per_page * st.session_state.page
+        end = start + rows_per_page
+        st.write('')
+
+        # Write each review up
+        col1b, col2b, col3b = st.beta_columns([1, 2, 5])
+        col1b.write('### Rating')
+        col2b.write('### Date')
+        col3b.write('### Review')
+        st.write('---')
+
+        # Get reviews
+        formatted_reviews = get_reviews_formatted(df.iloc[start:end])
+        for dict_rev in formatted_reviews:
+            col1b, col2b, col3b = st.beta_columns([1, 2, 5])
+            col1b.write(dict_rev['rating'])
+            col2b.write(dict_rev['review_date'])
+            col3b.write(dict_rev['review_bullets_highlighted'])
+            st.write('---------')
+
+        # Put buttons at bottom of table
+        col1c, col2c, col3c, _ = st.beta_columns([0.1, 0.17, 0.1, 0.63])
+        if st.session_state.page < n_pages-1:
+            col3c.button('>', on_click=next_page, key='col3b')
+        else:
+            col3c.write('')  # this makes the empty column show up on mobile
+
+        if st.session_state.page > 0:
+            col1c.button('<', on_click=prev_page, key='col1b')
+        else:
+            col1c.write('')  # this makes the empty column show up on mobile
+        col2c.write(f'Page {1 + st.session_state.page} of {n_pages}')
+
+
+@st.cache
+def get_stars(n):
+    return int(n) * '⭐'
