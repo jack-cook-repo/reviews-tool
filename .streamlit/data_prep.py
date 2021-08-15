@@ -4,7 +4,7 @@ import pandas as pd
 import logging
 import re
 
-from utils import get_dict_terms_to_replace
+from reviews_tool import get_dict_terms_to_replace
 from datetime import datetime, timedelta
 from nltk.corpus import words, stopwords
 from nltk.stem.wordnet import WordNetLemmatizer
