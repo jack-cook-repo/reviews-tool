@@ -730,8 +730,6 @@ bad_reviews_all = df_rating_counts.reset_index(drop=True).loc[0, 'bad_reviews_al
 total_reviews_all = df_rating_counts.reset_index(drop=True).loc[0, 'total_reviews_all']
 
 
-
-
 # Write section intro
 st.write(f'''
     In this section, a 4-5 star review is considered "good", and a 1-2 star review is considered "bad". 3 star reviews
