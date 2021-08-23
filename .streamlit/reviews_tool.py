@@ -452,7 +452,7 @@ def get_review_data(date_filt):
     Filters a dataframe of review data based on a selected filter, and returns the filtered dataframe
     '''
     # Load initial dataframe
-    FILE_PATH = os.getcwd() + '/data/processed_data/df_big_easy_clean.csv'
+    FILE_PATH = os.getcwd().replace('/.streamlit', '') + '/data/processed_data/df_big_easy_clean.csv'
     raw_data = pd.read_csv(FILE_PATH)
 
     current_date = get_date()
