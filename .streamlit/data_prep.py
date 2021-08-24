@@ -4,26 +4,26 @@ import pandas as pd
 import logging
 import re
 
-from reviews_tool import get_dict_terms_to_replace
+from utils import get_dict_terms_to_replace
 from datetime import datetime, timedelta
 from nltk.corpus import words, stopwords
 from nltk.stem.wordnet import WordNetLemmatizer
 wnl = WordNetLemmatizer()
 
 
-def parse_date(string_date):
+def parse_date(string_date, run_date_str):
     '''
     Takes string dates from Google review that are normally in a format of '6 days ago' or '3 months ago'
-    and turns them into actual dates by comparing relative to the current date.
+    and turns them into actual dates by comparing relative to the run_date_str.
 
     Slight flaw with Google reviews is that we lose specifics over time, e.g. anything > 1 year old will
     be assigned to the same date as any other review within that year.
 
     :param string_date: Text in the format of '1 day ago', '2 years ago', '3 weeks ago' etc.
+    :param run_date_str: Date in format YYYY-MM-DD when the reviews were extracted
     :return: Date parsed from string_date
     '''
-    # curr_date = datetime.now()
-    curr_date = datetime(2021, 7, 29)  # Hard coding as we currently aren't refreshing the file
+    run_date = datetime.strptime(run_date_str, '%Y-%m-%d')
     split_date = string_date.split(' ')
 
     # First split will be numeric quantity
@@ -41,19 +41,19 @@ def parse_date(string_date):
         delta = delta[:-1]
 
     if delta == 'year':
-        return curr_date - timedelta(days=365 * n)
+        return run_date - timedelta(days=365 * n)
     elif delta == 'month':
-        return curr_date - timedelta(days=30 * n)
+        return run_date - timedelta(days=30 * n)
     elif delta == 'week':
-        return curr_date - timedelta(weeks=n)
+        return run_date - timedelta(weeks=n)
     elif delta == 'day':
-        return curr_date - timedelta(days=n)
+        return run_date - timedelta(days=n)
     elif delta == 'hour':
-        return curr_date - timedelta(hours=n)
+        return run_date - timedelta(hours=n)
     elif delta == 'minute':
-        return curr_date - timedelta(minutes=n)
+        return run_date - timedelta(minutes=n)
     elif delta == 'moment':
-        return curr_date - timedelta(seconds=n)
+        return run_date - timedelta(seconds=n)
     else:
         raise ValueError(f'Unhandled delta type {delta}')
 
@@ -166,6 +166,7 @@ log.info(f'Big Easy data loaded with shape {df_big_easy.shape}')
 log.info(f'df_big_easy columns: {df_big_easy.columns.values}')
 df_big_easy_simple = df_big_easy[['reviewBody',
                                   'reviewRating',
+                                  'runDate',
                                   'dateCreated']].copy(deep=True)
 df_big_easy_simple = df_big_easy_simple.dropna(subset=['reviewBody'])
 log.info(f'df_big_easy_simple shape: {df_big_easy_simple.shape}')
@@ -173,8 +174,8 @@ log.info(f'df_big_easy_simple shape: {df_big_easy_simple.shape}')
 
 # Parse the dates provided by Google - i.e. '3 days ago' would become '2021-08-01' if today was '2021-08-04'
 log.info('Parsing dates')
-df_big_easy_simple['date_clean'] = df_big_easy_simple['dateCreated'].apply(
-    lambda d: parse_date(d)).astype('datetime64[D]')
+df_big_easy_simple['date_clean'] = df_big_easy_simple.apply(
+    lambda row: parse_date(row['dateCreated'], str(row['runDate'])[:10]), axis=1).astype('datetime64[D]')
 
 
 # Then remove non-English reviews

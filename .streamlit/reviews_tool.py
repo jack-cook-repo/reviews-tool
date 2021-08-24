@@ -7,6 +7,7 @@ import numpy as np
 import streamlit as st
 import seaborn as sns
 
+from utils import get_dict_terms_to_replace
 from matplotlib import pyplot as plt
 from sklearn.feature_extraction.text import CountVectorizer
 from datetime import datetime
@@ -15,31 +16,6 @@ from dateutil.relativedelta import relativedelta
 # ################## #
 #   Text functions   #
 # ################## #
-
-
-def get_dict_terms_to_replace():
-    '''
-    Utility function, gives you a dict with keys as the terms we want to replace to,
-    and items as terms we want to replace from.
-
-    e.g. We'd want to replace Barbecue, B.B.Q, and barbeque with bbq, so this dict
-    entry would be 'bbq': r'(barbe(c|q)ue|b.b.q|b(ar)?(\s)?b(\s)?q)'.
-
-    The reason for defining this as a function is to make it usable in 2 separate places,
-    1st to clean our text, and 2nd for highlighting text within a review.
-    '''
-
-    dict_terms_to_replace = {
-        'atmosphere': 'ambience',
-        'bbq': r'(barbe(c|q)ue|b\.b\.q|b(ar)?(\s)?b(\s)?q)',
-        'staff': r'(server|waiter|waitress)',
-        'minutes': 'mins',
-        'hours': 'hrs',
-        'seafood': r'sea(\s)food',
-        'money': r'£[0-9.]+'
-    }
-
-    return dict_terms_to_replace
 
 
 # @st.cache
@@ -76,7 +52,7 @@ def get_review_topics(df, dict_themed_topics, debug_mode=False):
     '''
 
     # Set up count vectorizer
-    C = CountVectorizer(ngram_range=(1, 3),
+    C = CountVectorizer(ngram_range=(1, 2),
                         max_df=0.5,
                         min_df=5,
                         binary=True,
@@ -115,13 +91,15 @@ def get_review_topics(df, dict_themed_topics, debug_mode=False):
                 terms_to_reverse.append(term)
 
     df_res_rev = df_res.copy(deep=True)
+
     # Then, for bigrams to reverse, add the count to it's reverse
     for term in terms_to_reverse:
         term_rev = ' '.join(reversed(term.split()))
 
         # Combine less frequent column into more frequent
         # to make sure we don't double count, take max of 2 terms
-        df_res_rev[term_rev] = np.max([df_res_rev[term], df_res_rev[term_rev]])
+        df_res_rev[term_rev] = np.max([df_res_rev[term], df_res_rev[term_rev]],
+                                      axis=0)
 
     # Then, drop columns we don't need
     df_res = df_res_rev.drop(terms_to_reverse, axis=1).copy(deep=True)
@@ -605,13 +583,13 @@ sns.set(font='sans-serif',
 
 
 # Set up sidebar
-st.sidebar.write('### I want to look at reviews over...')
+# st.sidebar.write('### I want to look at reviews over...')
 
 if 'period_filt' not in st.session_state:
     st.session_state.period_filt = 'All time'
 
-st.session_state.period_filt = st.sidebar.radio(label='',
-                                                options=['All time', 'Past month', 'Past 3 months', 'Past year'])
+# st.session_state.period_filt = st.sidebar.radio(label='',
+#                                                 options=['All time', 'Past month', 'Past 3 months', 'Past year'])
 
 
 # Caches results for speed
@@ -621,9 +599,8 @@ df_big_easy_clean['date_clean'] = df_big_easy_clean['date_clean'].astype('dateti
 
 
 
-
-
 # Write title
+
 text_colour = '#e03326'
 st.markdown(f'<h1 style=color:{text_colour}>🦞 Big Easy reviews app</h1>', unsafe_allow_html=True)
 st.write('''
@@ -633,8 +610,6 @@ st.write('''
     understand your customers and explore:
     - What do your customers like and dislike?
     - How does this change over time?
-    
-    Use the sidebar on the left to look at different time periods.
     
     ---
 ''')
