@@ -611,6 +611,7 @@ st.write('''
     - What do your customers like and dislike?
     - How does this change over time?
     
+    **Reviews from July 2020 & prior are tagged to July 2020**.
     ---
 ''')
 
