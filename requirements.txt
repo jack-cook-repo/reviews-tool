@@ -8,6 +8,7 @@ google-services-api
 selenium
 beautifulsoup4
 nltk
+mpld3
 spacy
 openpyxl
 sklearn
